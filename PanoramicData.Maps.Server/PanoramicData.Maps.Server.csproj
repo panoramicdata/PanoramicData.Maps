@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<NeutralResourcesLanguage>en</NeutralResourcesLanguage>
+		<UserSecretsId>PanoramicData.Maps.Server</UserSecretsId>
+		<IsPackable>false</IsPackable>
+		<InvariantGlobalization>true</InvariantGlobalization>
+		<!-- CA2007 (ConfigureAwait) targets libraries; this is an ASP.NET Core app (no SynchronizationContext). -->
+		<NoWarn>$(NoWarn);CA2007</NoWarn>
+
+		<!-- Package metadata (required by governance rules for all non-test projects) -->
+		<PackageId>PanoramicData.Maps.Server</PackageId>
+		<PackageProjectUrl>https://github.com/panoramicdata/PanoramicData.Maps</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/panoramicdata/PanoramicData.Maps</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<Description>Static map image + geocoding HTTP service (Photon + Protomaps tiles, MapLibre render). Published as a container image.</Description>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\PanoramicData.Maps\PanoramicData.Maps.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Playwright" />
+	</ItemGroup>
+
+</Project>

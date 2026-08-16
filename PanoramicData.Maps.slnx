@@ -1,0 +1,16 @@
+<Solution>
+  <Project Path="PanoramicData.Maps/PanoramicData.Maps.csproj" />
+  <Project Path="PanoramicData.Maps.Server/PanoramicData.Maps.Server.csproj" />
+  <Project Path="PanoramicData.Maps.Test/PanoramicData.Maps.Test.csproj" />
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+    <File Path="SECURITY.md" />
+    <File Path="version.json" />
+  </Folder>
+</Solution>

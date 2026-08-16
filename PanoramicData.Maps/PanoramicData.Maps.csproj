@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<NeutralResourcesLanguage>en</NeutralResourcesLanguage>
+
+		<!-- NuGet package metadata -->
+		<PackageId>PanoramicData.Maps</PackageId>
+		<Owners>Panoramic Data Limited</Owners>
+		<PackageProjectUrl>https://github.com/panoramicdata/PanoramicData.Maps</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/panoramicdata/PanoramicData.Maps</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<Description>Static map image rendering (markers, icons, lines, polygons) and geocoding for a self-hosted Photon + Protomaps tile stack. Core models and abstractions.</Description>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageTags>maps;staticmap;geocoding;photon;protomaps;maplibre;openstreetmap;PanoramicData</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Http" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+		<PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\README.md" Link="README.md" Pack="true" PackagePath="" />
+	</ItemGroup>
+
+</Project>
