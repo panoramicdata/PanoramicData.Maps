@@ -30,7 +30,7 @@
 		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
 		<PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
 		<PackageReference Include="SkiaSharp" />
-		<PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+		<PackageReference Include="SkiaSharp.NativeAssets.Linux" />
 		<PackageReference Include="NetTopologySuite" />
 		<PackageReference Include="NetTopologySuite.IO.VectorTiles" />
 		<PackageReference Include="NetTopologySuite.IO.VectorTiles.Mapbox" />

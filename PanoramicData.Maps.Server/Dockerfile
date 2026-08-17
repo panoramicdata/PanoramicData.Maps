@@ -12,9 +12,11 @@ RUN dotnet publish PanoramicData.Maps.Server/PanoramicData.Maps.Server.csproj -c
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
-# SkiaSharp.NativeAssets.Linux.NoDependencies bundles libSkiaSharp with no external deps, so no
-# extra apt packages are needed for drawing geometry. NOTE: text labels (a later milestone) need
-# fonts - add `fontconfig` + a font (e.g. fonts-noto) here when labels land.
+# SkiaSharp.NativeAssets.Linux links fontconfig; install it plus a font so text (the OpenStreetMap
+# attribution now, place labels later) renders. fonts-dejavu-core is small and widely available.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fontconfig fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
