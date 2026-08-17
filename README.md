@@ -1,9 +1,22 @@
 # PanoramicData.Maps
 
+[![CI](https://github.com/panoramicdata/PanoramicData.Maps/actions/workflows/ci.yml/badge.svg)](https://github.com/panoramicdata/PanoramicData.Maps/actions/workflows/ci.yml)
+[![Nuget](https://img.shields.io/nuget/v/PanoramicData.Maps)](https://www.nuget.org/packages/PanoramicData.Maps/)
+[![Nuget](https://img.shields.io/nuget/dt/PanoramicData.Maps)](https://www.nuget.org/packages/PanoramicData.Maps/)
+[![Docker](https://img.shields.io/docker/v/panoramicdata/maps?label=docker&sort=semver)](https://hub.docker.com/r/panoramicdata/maps)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<!-- Codacy: add after enabling Codacy for this repo (replace PROJECT_ID with the generated id) -->
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/PROJECT_ID)](https://app.codacy.com/gh/panoramicdata/PanoramicData.Maps/dashboard)
+
 Open-source **static map image** rendering with markers, icons, lines and polygon overlays, plus a
 thin **geocoding** passthrough — for a self-hosted [Photon](https://github.com/komoot/photon) +
 [Protomaps](https://protomaps.com) / [MapLibre](https://maplibre.org) map stack. A drop-in,
 self-hostable alternative to the Google Static Maps + Geocoding APIs.
+
+Renders **natively with SkiaSharp — no headless browser, no Node.js.**
+
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for Kubernetes setup, dependencies and dataset
+options (planet vs alternatives), and **[CONTRIBUTING.md](CONTRIBUTING.md)** to contribute.
 
 Maps are rendered by driving **MapLibre GL JS** in headless Chromium (via Playwright) and
 screenshotting the result, so any MapLibre style and overlay works exactly as it would in a browser.
