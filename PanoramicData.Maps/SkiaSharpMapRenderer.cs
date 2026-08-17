@@ -8,15 +8,13 @@ namespace PanoramicData.Maps;
 
 /// <summary>
 /// Renders maps natively (no headless browser): fetches Mapbox Vector Tiles from the tile service,
-/// decodes them, projects to Web Mercator screen space and draws them with SkiaSharp, then draws the
-/// requested overlays. This is milestone 1 - a pragmatic basemap style keyed on Protomaps source-layer
-/// names; full MapLibre-style-JSON fidelity is a later milestone.
+/// decodes them, projects to Web-Mercator screen space and draws them with SkiaSharp, then draws the
+/// requested overlays. Milestone 1 uses a pragmatic basemap style keyed on Protomaps source-layer
+/// names; full MapLibre-style-JSON fidelity and labels are a later milestone.
 /// </summary>
 public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOptions> options, ILogger<SkiaSharpMapRenderer> logger)
 	: IMapRenderer
 {
-	private const int TileSize = 512;
-	private const int Extent = 4096;
 	private readonly HttpClient _httpClient = httpClient;
 	private readonly MapsOptions _options = options.Value;
 	private readonly ILogger<SkiaSharpMapRenderer> _logger = logger;
@@ -33,30 +31,26 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		var width = request.Width * scale;
 		var height = request.Height * scale;
 
-		// Viewport centre in world pixels (at the requested zoom, TileSize-based).
-		var world = WorldSize(zoom);
-		var cx = LonToWorldX(center.Longitude, world);
-		var cy = LatToWorldY(center.Latitude, world);
-		var left = cx - width / 2.0;
-		var top = cy - height / 2.0;
+		var world = WebMercator.WorldSize(zoom);
+		var left = WebMercator.LongitudeToX(center.Longitude, world) - width / 2.0;
+		var top = WebMercator.LatitudeToY(center.Latitude, world) - height / 2.0;
 
 		using var surface = SKSurface.Create(new SKImageInfo(width, height));
 		var canvas = surface.Canvas;
 		canvas.Clear(new SKColor(0xF2, 0xEF, 0xE9)); // land/background
 
-		// Tiles covering the viewport.
-		var maxTile = (1 << zoom) - 1;
-		var txMin = (int)Math.Floor(left / TileSize);
-		var txMax = (int)Math.Floor((left + width) / TileSize);
-		var tyMin = Math.Clamp((int)Math.Floor(top / TileSize), 0, maxTile);
-		var tyMax = Math.Clamp((int)Math.Floor((top + height) / TileSize), 0, maxTile);
+		var maxTile = WebMercator.MaxTileIndex(zoom);
+		var txMin = (int)Math.Floor(left / WebMercator.TileSize);
+		var txMax = (int)Math.Floor((left + width) / WebMercator.TileSize);
+		var tyMin = Math.Clamp((int)Math.Floor(top / WebMercator.TileSize), 0, maxTile);
+		var tyMax = Math.Clamp((int)Math.Floor((top + height) / WebMercator.TileSize), 0, maxTile);
 
 		for (var ty = tyMin; ty <= tyMax; ty++)
 		{
 			for (var tx = txMin; tx <= txMax; tx++)
 			{
 				var wrappedX = ((tx % (maxTile + 1)) + (maxTile + 1)) % (maxTile + 1); // wrap antimeridian
-				await DrawTileAsync(canvas, wrappedX, ty, zoom, world, left, top, (float)scale, cancellationToken).ConfigureAwait(false);
+				await DrawTileAsync(canvas, wrappedX, ty, zoom, world, left, top, scale, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -69,7 +63,7 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		return new MapImage(data.ToArray(), isPng ? "image/png" : "image/jpeg");
 	}
 
-	private async Task DrawTileAsync(SKCanvas canvas, int tx, int ty, int zoom, double world, double left, double top, float scale, CancellationToken ct)
+	private async Task DrawTileAsync(SKCanvas canvas, int tx, int ty, int zoom, double world, double left, double top, int scale, CancellationToken ct)
 	{
 		var url = TileUrl(zoom, tx, ty);
 		byte[] bytes;
@@ -97,7 +91,6 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		using var ms = new MemoryStream(Gunzip(bytes));
 		var vectorTile = _reader.Read(ms, new NetTopologySuite.IO.VectorTiles.Tiles.Tile(tx, ty, zoom));
 
-		// Draw layers back-to-front for a sensible basemap look.
 		DrawLayer(canvas, vectorTile, ["water"], world, left, top, fill: new SKColor(0xA0, 0xC8, 0xF0));
 		DrawLayer(canvas, vectorTile, ["landuse", "landcover", "natural"], world, left, top, fill: new SKColor(0xD6, 0xE3, 0xCE));
 		DrawLayer(canvas, vectorTile, ["buildings"], world, left, top, fill: new SKColor(0xE4, 0xDF, 0xD9), stroke: new SKColor(0xD0, 0xC9, 0xC0), strokeWidth: 0.5f * scale);
@@ -147,7 +140,7 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		}
 	}
 
-	private SKPath? ToPath(Geometry? geometry, double world, double left, double top)
+	private static SKPath? ToPath(Geometry? geometry, double world, double left, double top)
 	{
 		if (geometry is null || geometry.IsEmpty)
 		{
@@ -159,7 +152,7 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		return path;
 	}
 
-	private void AddGeometry(SKPath path, Geometry geometry, double world, double left, double top)
+	private static void AddGeometry(SKPath path, Geometry geometry, double world, double left, double top)
 	{
 		switch (geometry)
 		{
@@ -186,15 +179,14 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		}
 	}
 
-	private void AddLine(SKPath path, Coordinate[] coords, double world, double left, double top, bool close)
+	private static void AddLine(SKPath path, Coordinate[] coords, double world, double left, double top, bool close)
 	{
 		if (coords.Length == 0)
 		{
 			return;
 		}
 
-		var start = Project(coords[0], world, left, top);
-		path.MoveTo(start);
+		path.MoveTo(Project(coords[0], world, left, top));
 		for (var i = 1; i < coords.Length; i++)
 		{
 			path.LineTo(Project(coords[i], world, left, top));
@@ -206,18 +198,18 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		}
 	}
 
-	private SKPoint Project(Coordinate c, double world, double left, double top)
-		=> new((float)(LonToWorldX(c.X, world) - left), (float)(LatToWorldY(c.Y, world) - top));
+	private static SKPoint Project(Coordinate c, double world, double left, double top)
+		=> new((float)(WebMercator.LongitudeToX(c.X, world) - left), (float)(WebMercator.LatitudeToY(c.Y, world) - top));
 
-	private void DrawOverlays(SKCanvas canvas, MapRequest request, double world, double left, double top, int scale)
+	private static void DrawOverlays(SKCanvas canvas, MapRequest request, double world, double left, double top, int scale)
 	{
 		foreach (var poly in request.Polygons)
 		{
 			using var path = new SKPath();
 			AddLine(path, poly.Points.Select(p => new Coordinate(p.Longitude, p.Latitude)).ToArray(), world, left, top, close: true);
-			using var fp = new SKPaint { Color = Parse(poly.FillColor, (byte)(poly.FillOpacity * 255)), IsAntialias = true, Style = SKPaintStyle.Fill };
+			using var fp = new SKPaint { Color = MapColors.Parse(poly.FillColor, new SKColor(0xF5, 0x9E, 0x0B)).WithAlpha((byte)(poly.FillOpacity * 255)), IsAntialias = true, Style = SKPaintStyle.Fill };
 			canvas.DrawPath(path, fp);
-			using var lp = new SKPaint { Color = Parse(poly.StrokeColor), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)poly.StrokeWidth * scale };
+			using var lp = new SKPaint { Color = MapColors.Parse(poly.StrokeColor, new SKColor(0xF5, 0x9E, 0x0B)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)poly.StrokeWidth * scale };
 			canvas.DrawPath(path, lp);
 		}
 
@@ -225,16 +217,16 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		{
 			using var path = new SKPath();
 			AddLine(path, line.Points.Select(p => new Coordinate(p.Longitude, p.Latitude)).ToArray(), world, left, top, close: false);
-			using var p = new SKPaint { Color = Parse(line.Color, (byte)(line.Opacity * 255)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)line.Width * scale, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
+			using var p = new SKPaint { Color = MapColors.Parse(line.Color, new SKColor(0x00, 0x00, 0xFF)).WithAlpha((byte)(line.Opacity * 255)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)line.Width * scale, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
 			canvas.DrawPath(path, p);
 		}
 
+		var fallbackMarker = new SKColor(0xDC, 0x26, 0x26);
 		foreach (var m in request.Markers)
 		{
 			var pt = Project(new Coordinate(m.Location.Longitude, m.Location.Latitude), world, left, top);
 			var r = (float)(9 * m.Scale) * scale;
-			// Simple teardrop pin: circle head + triangle tail.
-			using var body = new SKPaint { Color = Parse(m.Color), IsAntialias = true, Style = SKPaintStyle.Fill };
+			using var body = new SKPaint { Color = MapColors.Parse(m.Color, fallbackMarker), IsAntialias = true, Style = SKPaintStyle.Fill };
 			using var outline = new SKPaint { Color = SKColors.White, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2f * scale };
 			using var tail = new SKPath();
 			tail.MoveTo(pt.X - r * 0.7f, pt.Y - r * 0.4f);
@@ -264,16 +256,6 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		return $"{baseUrl}/planet/{z}/{x}/{y}.mvt";
 	}
 
-	private static double WorldSize(int zoom) => TileSize * Math.Pow(2, zoom);
-
-	private static double LonToWorldX(double lon, double world) => (lon + 180.0) / 360.0 * world;
-
-	private static double LatToWorldY(double lat, double world)
-	{
-		var s = Math.Sin(lat * Math.PI / 180.0);
-		return (0.5 - Math.Log((1 + s) / (1 - s)) / (4 * Math.PI)) * world;
-	}
-
 	private static byte[] Gunzip(byte[] bytes)
 	{
 		if (bytes.Length < 2 || bytes[0] != 0x1f || bytes[1] != 0x8b)
@@ -286,15 +268,5 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		using var output = new MemoryStream();
 		gz.CopyTo(output);
 		return output.ToArray();
-	}
-
-	private static SKColor Parse(string css, byte alpha = 255)
-	{
-		if (SKColor.TryParse(css, out var c))
-		{
-			return alpha == 255 ? c : c.WithAlpha(alpha);
-		}
-
-		return new SKColor(0xDC, 0x26, 0x26, alpha);
 	}
 }
