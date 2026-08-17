@@ -5,8 +5,7 @@
 [![Nuget](https://img.shields.io/nuget/dt/PanoramicData.Maps)](https://www.nuget.org/packages/PanoramicData.Maps/)
 [![Docker](https://img.shields.io/docker/v/panoramicdata/maps?label=docker&sort=semver)](https://hub.docker.com/r/panoramicdata/maps)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-<!-- Codacy: add after enabling Codacy for this repo (replace PROJECT_ID with the generated id) -->
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/PROJECT_ID)](https://app.codacy.com/gh/panoramicdata/PanoramicData.Maps/dashboard)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/108a448491af41e89dde8c039bf14dce)](https://app.codacy.com/gh/panoramicdata/PanoramicData.Maps/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
 Open-source **static map image** rendering with markers, icons, lines and polygon overlays, plus a
 thin **geocoding** passthrough — for a self-hosted [Photon](https://github.com/komoot/photon) +

@@ -1,11 +1,20 @@
 {
   "info": {
     "name": "PanoramicData.Maps",
-    "description": "Static map + geocoding service (Google-Static-Maps-compatible). Set the `maps_url` environment variable (no trailing slash):\n- Local:      http://localhost:8080\n- Test:       https://maps-test.panoramicdata.com\n- Production: https://maps.panoramicdata.com\n\nStatic-map requests return an image (PNG/JPEG). Coordinates use Google's lat,lng order. Rendered maps carry © OpenStreetMap attribution (ODbL).",
+    "description": "Static map + geocoding service (Google-Static-Maps-compatible). Set the `maps_url` environment variable (no trailing slash):\n- Local:      http://localhost:8080\n- Test:       https://maps-test.panoramicdata.com\n- Production: https://maps.panoramicdata.com\n\nStatic-map requests return an image (PNG/JPEG). Coordinates use Google's lat,lng order. Rendered maps carry © OpenStreetMap attribution (ODbL).\n\nAPI KEY: the hosted test and production endpoints are API-key protected. Set the `maps_api_key` environment variable to the shared key from Passbolt (resource \"PanoramicData.Maps API Key (shared)\"). It is sent automatically as the `X-Api-Key` header via collection-level auth (you can alternatively add `?key=` to the URL). The `/health` and `/` endpoints are unguarded. For local dev, run the container with `Maps__RequireApiKey=false` and leave `maps_api_key` blank.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-Api-Key", "type": "string" },
+      { "key": "value", "value": "{{maps_api_key}}", "type": "string" },
+      { "key": "in", "value": "header", "type": "string" }
+    ]
+  },
   "variable": [
-    { "key": "maps_url", "value": "http://localhost:8080", "type": "string" }
+    { "key": "maps_url", "value": "http://localhost:8080", "type": "string" },
+    { "key": "maps_api_key", "value": "", "type": "string" }
   ],
   "item": [
     {
