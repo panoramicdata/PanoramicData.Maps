@@ -50,11 +50,85 @@ public class StaticMapRequestParserTests
 	}
 
 	[Fact]
-	public void Parse_Size_ClampedToLimits()
+	public void Parse_Size_OverLimit_Rejected()
 	{
-		StaticMapRequestParser.TryParse(Q(("center", "0,0"), ("zoom", "3"), ("size", "99999x99999")), Options, out var r, out _).Should().BeTrue();
-		r.Width.Should().Be(Options.MaxWidth);
-		r.Height.Should().Be(Options.MaxHeight);
+		StaticMapRequestParser.TryParse(Q(("center", "0,0"), ("zoom", "3"), ("size", "99999x99999")), Options, out _, out var err).Should().BeFalse();
+		err.Should().Contain("width 99999").And.Contain($"maximum of {Options.MaxWidth}");
+	}
+
+	[Fact]
+	public void Parse_HeightOverLimit_Rejected()
+	{
+		StaticMapRequestParser.TryParse(Q(("center", "0,0"), ("zoom", "3"), ("size", $"100x{Options.MaxHeight + 1}")), Options, out _, out var err).Should().BeFalse();
+		err.Should().Contain("height").And.Contain($"maximum of {Options.MaxHeight}");
+	}
+
+	[Fact]
+	public void Parse_ScaleOverLimit_Rejected()
+	{
+		StaticMapRequestParser.TryParse(Q(("center", "0,0"), ("zoom", "3"), ("scale", "3")), Options, out _, out var err).Should().BeFalse();
+		err.Should().Be($"scale 3 exceeds the maximum of {Options.MaxScale}");
+	}
+
+	[Fact]
+	public void Parse_SizeWithinLimits_Succeeds()
+	{
+		StaticMapRequestParser.TryParse(Q(("center", "0,0"), ("zoom", "3"), ("size", "640x480")), Options, out var r, out _).Should().BeTrue();
+		r.Width.Should().Be(640);
+		r.Height.Should().Be(480);
+	}
+
+	[Fact]
+	public void Parse_MapType_Terrain_ResolvesConfiguredStyle()
+	{
+		var options = new MapsOptions();
+		options.Styles["terrain"] = "https://tiles.example/terrain.json";
+		StaticMapRequestParser.TryParse(Q(("center", "0,0"), ("zoom", "3"), ("maptype", "terrain")), options, out var r, out _).Should().BeTrue();
+		r.StyleUrl.Should().Be("https://tiles.example/terrain.json");
+	}
+
+	[Theory]
+	[InlineData("roadmap")]
+	[InlineData("satellite")]
+	[InlineData("hybrid")]
+	[InlineData("terrain")]
+	public void Parse_GoogleMapTypes_AreAccepted_AliasToDefault(string mapType)
+	{
+		StaticMapRequestParser.TryParse(Q(("center", "0,0"), ("zoom", "3"), ("maptype", mapType)), Options, out var r, out var err).Should().BeTrue();
+		err.Should().BeNull();
+		r.StyleUrl.Should().BeNull(); // aliases to the default configured style
+	}
+
+	[Fact]
+	public void Parse_UnknownStyle_Rejected()
+	{
+		StaticMapRequestParser.TryParse(Q(("center", "0,0"), ("zoom", "3"), ("style", "nonsense")), Options, out _, out var err).Should().BeFalse();
+		err.Should().Contain("Unknown map style 'nonsense'");
+	}
+
+	[Fact]
+	public void Parse_Region_ParsesCodeFillOpacity()
+	{
+		StaticMapRequestParser.TryParse(Q(("region", "code:GB|fill:red|opacity:0.5")), Options, out var r, out _).Should().BeTrue();
+		r.Regions.Should().ContainSingle();
+		r.Regions[0].Code.Should().Be("GB");
+		r.Regions[0].FillColor.Should().Be("red");
+		r.Regions[0].FillOpacity.Should().Be(0.5);
+	}
+
+	[Fact]
+	public void Parse_Region_UnknownCode_Rejected()
+	{
+		StaticMapRequestParser.TryParse(Q(("region", "code:ZZ|fill:red")), Options, out _, out var err).Should().BeFalse();
+		err.Should().Contain("Unknown region code 'ZZ'");
+	}
+
+	[Fact]
+	public void Parse_Region_BareCode_Works()
+	{
+		StaticMapRequestParser.TryParse(Q(("region", "FR")), Options, out var r, out _).Should().BeTrue();
+		r.Regions.Should().ContainSingle();
+		r.Regions[0].Code.Should().Be("FR");
 	}
 
 	[Fact]

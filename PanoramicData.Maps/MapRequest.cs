@@ -73,6 +73,28 @@ public sealed class PolygonSpec
 }
 
 /// <summary>
+/// A named region (country/state) to shade, with the geometry resolved server-side from the region
+/// <see cref="Code"/> — the caller does not supply vertices. See issue #6.
+/// </summary>
+public sealed class RegionSpec
+{
+	/// <summary>Region code: ISO alpha-2, alpha-3, a colloquial alias (e.g. <c>UK</c>) or a full country name.</summary>
+	public required string Code { get; init; }
+
+	/// <summary>CSS fill colour.</summary>
+	public string FillColor { get; init; } = "#dc2626";
+
+	/// <summary>Fill opacity (0-1).</summary>
+	public double FillOpacity { get; init; } = 0.5;
+
+	/// <summary>Optional CSS stroke colour for the region outline.</summary>
+	public string? StrokeColor { get; init; }
+
+	/// <summary>Stroke width in pixels (used only when <see cref="StrokeColor"/> is set).</summary>
+	public double StrokeWidth { get; init; } = 1;
+}
+
+/// <summary>
 /// A request to render a static map image. Either <see cref="Center"/> or <see cref="Location"/>
 /// must be supplied (if both are given, <see cref="Center"/> wins); when only <see cref="Location"/>
 /// is set it is resolved to coordinates via the configured geocoder.
@@ -111,4 +133,7 @@ public sealed record MapRequest
 
 	/// <summary>Polygon overlays to draw.</summary>
 	public IReadOnlyList<PolygonSpec> Polygons { get; init; } = [];
+
+	/// <summary>Named regions (countries/states) to shade, geometry resolved server-side.</summary>
+	public IReadOnlyList<RegionSpec> Regions { get; init; } = [];
 }

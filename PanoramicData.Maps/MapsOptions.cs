@@ -33,6 +33,22 @@ public sealed class MapsOptions
 	/// <summary>Accepted API keys when <see cref="RequireApiKey"/> is enabled.</summary>
 	public IList<string> ApiKeys { get; set; } = [];
 
+	/// <summary>
+	/// Default language ("en", "de", "fr", "it") passed to the geocoder when a caller does not
+	/// supply one, so results come back with consistent naming (e.g. "Tokyo"/"Japan" rather than
+	/// "東京都"/"日本"). Null leaves Photon's own default (local script). See issue #5.
+	/// </summary>
+	public string? DefaultLanguage { get; set; }
+
+	/// <summary>
+	/// Named map styles selectable via the <c>style</c>/<c>maptype</c> query parameter, mapping a
+	/// style name (e.g. <c>terrain</c>) to a MapLibre style URL. Names are matched case-insensitively.
+	/// Google <c>maptype</c> values with no open-data equivalent (<c>satellite</c>, <c>hybrid</c>) and
+	/// any style name not present here alias to the default style; a completely unknown style name is
+	/// rejected. See issue #7.
+	/// </summary>
+	public IDictionary<string, string> Styles { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
 	/// <summary>Maximum permitted image width in CSS pixels.</summary>
 	public int MaxWidth { get; set; } = 2048;
 

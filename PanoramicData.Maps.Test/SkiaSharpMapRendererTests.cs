@@ -93,6 +93,63 @@ public class SkiaSharpMapRendererTests
 	}
 
 	[Fact]
+	public async Task RenderAsync_DrawsMarkerLabel()
+	{
+		var renderer = CreateRenderer();
+		var baseRequest = new MapRequest
+		{
+			Center = new GeoPoint(-0.1278, 51.5074),
+			Zoom = 12,
+			Width = 200,
+			Height = 200,
+			Markers = [new MarkerSpec { Location = new GeoPoint(-0.1278, 51.5074), Color = "yellow", Scale = 3 }]
+		};
+		var labelled = baseRequest with
+		{
+			Markers = [new MarkerSpec { Location = new GeoPoint(-0.1278, 51.5074), Color = "yellow", Scale = 3, Label = "A" }]
+		};
+
+		var plain = await renderer.RenderAsync(baseRequest, TestContext.Current.CancellationToken);
+		var withLabel = await renderer.RenderAsync(labelled, TestContext.Current.CancellationToken);
+
+		// Drawing the label must change the output; a yellow pin gets dark ("A") pixels it lacked before.
+		withLabel.Bytes.SequenceEqual(plain.Bytes).Should().BeFalse("the marker label should have been rendered");
+	}
+
+	[Fact]
+	public async Task RenderAsync_ShadesNamedRegion()
+	{
+		var renderer = CreateRenderer();
+		var request = new MapRequest
+		{
+			Center = new GeoPoint(2.5, 46.5), // France
+			Zoom = 5,
+			Width = 400,
+			Height = 300,
+			Regions = [new RegionSpec { Code = "FR", FillColor = "red", FillOpacity = 1.0 }]
+		};
+
+		var image = await renderer.RenderAsync(request, TestContext.Current.CancellationToken);
+
+		using var bmp = SKBitmap.Decode(image.Bytes);
+		var foundRed = false;
+		for (var y = 0; y < bmp.Height && !foundRed; y++)
+		{
+			for (var x = 0; x < bmp.Width; x++)
+			{
+				var px = bmp.GetPixel(x, y);
+				if (px.Red > 200 && px.Green < 70 && px.Blue < 70)
+				{
+					foundRed = true;
+					break;
+				}
+			}
+		}
+
+		foundRed.Should().BeTrue("France should have been shaded red from the embedded boundary data");
+	}
+
+	[Fact]
 	public async Task RenderAsync_JpegFormat()
 	{
 		var renderer = CreateRenderer();

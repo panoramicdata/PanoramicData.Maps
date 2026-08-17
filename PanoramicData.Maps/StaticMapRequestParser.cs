@@ -7,7 +7,9 @@ namespace PanoramicData.Maps;
 /// Coordinates in the query use Google's <c>lat,lng</c> order. Parsing is synchronous; if
 /// <see cref="MapRequest.Location"/> is set instead of <see cref="MapRequest.Center"/>, the caller
 /// geocodes it. Supported: <c>center</c>/<c>location</c>, <c>zoom</c>, <c>size</c>/<c>width</c>/<c>height</c>,
-/// <c>scale</c>, <c>format</c>, repeatable <c>markers</c> and <c>path</c> (styled, pipe-delimited).
+/// <c>scale</c>, <c>format</c>, <c>maptype</c>/<c>style</c>, repeatable <c>markers</c>, <c>path</c> and
+/// <c>region</c> (styled, pipe-delimited). Requests exceeding the configured size/scale limits are
+/// rejected (issue #3) rather than silently clamped.
 /// </summary>
 public static class StaticMapRequestParser
 {
@@ -15,7 +17,7 @@ public static class StaticMapRequestParser
 	/// Attempts to parse a query into a <see cref="MapRequest"/>.
 	/// </summary>
 	/// <param name="query">The query parameters (key -> values).</param>
-	/// <param name="options">Limits (max width/height/scale).</param>
+	/// <param name="options">Limits (max width/height/scale) and named styles.</param>
 	/// <param name="request">The parsed request on success.</param>
 	/// <param name="error">A human-readable error on failure.</param>
 	/// <returns><see langword="true"/> if a renderable request was produced.</returns>
@@ -54,10 +56,24 @@ public static class StaticMapRequestParser
 			}
 		}
 
-		var (width, height) = ParseSize(First(query, "size"), First(query, "width"), First(query, "height"), options);
+		if (!ParseSize(First(query, "size"), First(query, "width"), First(query, "height"), options, out var width, out var height, out error))
+		{
+			return false;
+		}
+
 		double? zoom = TryDouble(First(query, "zoom"), out var z) ? Math.Clamp(z, 0, 22) : null;
-		var scale = Math.Clamp(TryInt(First(query, "scale"), out var s) ? s : 1, 1, options.MaxScale);
+
+		if (!ParseScale(First(query, "scale"), options, out var scale, out error))
+		{
+			return false;
+		}
+
 		var format = FormatOf(First(query, "format"));
+
+		if (!ResolveStyle(First(query, "style") ?? First(query, "maptype"), options, out var styleUrl, out error))
+		{
+			return false;
+		}
 
 		var markers = new List<MarkerSpec>();
 		foreach (var group in All(query, "markers"))
@@ -72,9 +88,18 @@ public static class StaticMapRequestParser
 			ParsePathGroup(group, paths, polygons);
 		}
 
-		if (center is null && location is null && markers.Count == 0 && paths.Count == 0 && polygons.Count == 0)
+		var regions = new List<RegionSpec>();
+		foreach (var group in All(query, "region"))
 		{
-			error = "Provide 'center' (lat,lng or a place name) and 'zoom', or at least one 'markers'/'path'.";
+			if (!ParseRegionGroup(group, regions, out error))
+			{
+				return false;
+			}
+		}
+
+		if (center is null && location is null && markers.Count == 0 && paths.Count == 0 && polygons.Count == 0 && regions.Count == 0)
+		{
+			error = "Provide 'center' (lat,lng or a place name) and 'zoom', or at least one 'markers'/'path'/'region'.";
 			return false;
 		}
 
@@ -87,9 +112,11 @@ public static class StaticMapRequestParser
 			Height = height,
 			Scale = scale,
 			Format = format,
+			StyleUrl = styleUrl,
 			Markers = markers,
 			Paths = paths,
-			Polygons = polygons
+			Polygons = polygons,
+			Regions = regions
 		};
 		return true;
 	}
@@ -150,6 +177,91 @@ public static class StaticMapRequestParser
 		}
 	}
 
+	/// <summary>
+	/// Parses a <c>region</c> group, e.g. <c>code:GB|fill:red|opacity:0.5|stroke:black|weight:1</c>.
+	/// Rejects (via <paramref name="error"/>) a region code that resolves to no country or has no
+	/// available boundary, rather than rendering nothing (issue #6).
+	/// </summary>
+	private static bool ParseRegionGroup(string group, List<RegionSpec> into, out string? error)
+	{
+		error = null;
+		string? code = null;
+		string fill = "#dc2626";
+		double opacity = 0.5;
+		string? stroke = null;
+		double weight = 1;
+
+		foreach (var part in group.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+		{
+			if (TryDescriptor(part, "code", out var cd)) { code = cd; }
+			else if (TryDescriptor(part, "fill", out var f)) { fill = f; }
+			else if (TryDescriptor(part, "fillcolor", out var fc)) { fill = fc; }
+			else if (TryDescriptor(part, "opacity", out var o) && double.TryParse(o, NumberStyles.Float, CultureInfo.InvariantCulture, out var ov)) { opacity = Math.Clamp(ov, 0, 1); }
+			else if (TryDescriptor(part, "stroke", out var st)) { stroke = st; }
+			else if (TryDescriptor(part, "weight", out var w) && double.TryParse(w, NumberStyles.Float, CultureInfo.InvariantCulture, out var wv)) { weight = wv; }
+			else if (code is null) { code = part; } // bare code (e.g. region=GB)
+		}
+
+		if (string.IsNullOrWhiteSpace(code))
+		{
+			error = "A 'region' must specify a country code, e.g. region=code:GB|fill:red.";
+			return false;
+		}
+
+		var alpha3 = Countries.ResolveAlpha3(code);
+		if (alpha3 is null)
+		{
+			error = $"Unknown region code '{code}'.";
+			return false;
+		}
+
+		if (!RegionBoundaries.TryGet(alpha3, out _))
+		{
+			error = $"No boundary available for region '{code}' at the current dataset resolution.";
+			return false;
+		}
+
+		into.Add(new RegionSpec { Code = code, FillColor = fill, FillOpacity = opacity, StrokeColor = stroke, StrokeWidth = weight });
+		return true;
+	}
+
+	/// <summary>
+	/// Resolves the <c>style</c>/<c>maptype</c> selector to a style URL. A configured named style wins;
+	/// the Google <c>roadmap</c>/<c>satellite</c>/<c>hybrid</c>/<c>terrain</c> values are accepted and
+	/// alias to the default when not explicitly configured; anything else is rejected (issue #7).
+	/// </summary>
+	private static bool ResolveStyle(string? selector, MapsOptions options, out string? styleUrl, out string? error)
+	{
+		styleUrl = null;
+		error = null;
+		if (string.IsNullOrWhiteSpace(selector))
+		{
+			return true;
+		}
+
+		var name = selector.Trim();
+		foreach (var kvp in options.Styles)
+		{
+			if (string.Equals(kvp.Key, name, StringComparison.OrdinalIgnoreCase))
+			{
+				styleUrl = kvp.Value;
+				return true;
+			}
+		}
+
+		switch (name.ToLowerInvariant())
+		{
+			case "roadmap":
+			case "satellite": // no open global imagery - aliases to the road style
+			case "hybrid":
+			case "terrain": // achievable with open data, but aliases to default until a style is configured
+				return true;
+			default:
+				error = $"Unknown map style '{name}'.";
+				return false;
+		}
+	}
+
 	private static double SizeToScale(string size) => size.ToLowerInvariant() switch
 	{
 		"tiny" => 0.5,
@@ -164,10 +276,30 @@ public static class StaticMapRequestParser
 			? MapImageFormat.Jpeg
 			: MapImageFormat.Png;
 
-	private static (int Width, int Height) ParseSize(string? size, string? width, string? height, MapsOptions options)
+	private static bool ParseScale(string? raw, MapsOptions options, out int scale, out string? error)
 	{
-		var w = 800;
-		var h = 600;
+		error = null;
+		scale = 1;
+		if (!TryInt(raw, out var s))
+		{
+			return true;
+		}
+
+		if (s > options.MaxScale)
+		{
+			error = $"scale {s} exceeds the maximum of {options.MaxScale}";
+			return false;
+		}
+
+		scale = Math.Max(1, s);
+		return true;
+	}
+
+	private static bool ParseSize(string? size, string? width, string? height, MapsOptions options, out int w, out int h, out string? error)
+	{
+		error = null;
+		w = 800;
+		h = 600;
 		if (!string.IsNullOrWhiteSpace(size))
 		{
 			var parts = size.Split('x', 'X');
@@ -183,7 +315,21 @@ public static class StaticMapRequestParser
 			if (int.TryParse(height, out var ph)) { h = ph; }
 		}
 
-		return (Math.Clamp(w, 1, options.MaxWidth), Math.Clamp(h, 1, options.MaxHeight));
+		if (w > options.MaxWidth)
+		{
+			error = $"width {w} exceeds the maximum of {options.MaxWidth}";
+			return false;
+		}
+
+		if (h > options.MaxHeight)
+		{
+			error = $"height {h} exceeds the maximum of {options.MaxHeight}";
+			return false;
+		}
+
+		w = Math.Max(1, w);
+		h = Math.Max(1, h);
+		return true;
 	}
 
 	/// <summary>Parses a Google <c>lat,lng</c> pair into a <see cref="GeoPoint"/> (which stores lon,lat).</summary>

@@ -38,23 +38,32 @@ app.MapGet("/", () => Results.Ok(new
 	name = "PanoramicData.Maps",
 	endpoints = new[]
 	{
-		"GET /v1/geocode?q=London",
-		"GET /v1/reverse?lon=-0.1278&lat=51.5074",
+		"GET /v1/geocode?q=London&lang=en",
+		"GET /v1/reverse?lon=-0.1278&lat=51.5074&lang=en",
+		"GET /v1/limits  (max width/height/scale)",
 		"GET /staticmap?center=51.5074,-0.1278&zoom=12&size=800x600&markers=color:red|label:A|51.5074,-0.1278  (Google-compatible)",
+		"GET /staticmap?...&maptype=terrain&region=code:GB|fill:red|opacity:0.5",
 		"GET /v1/staticmap?...  (same as /staticmap)",
 		"POST /v1/staticmap  (application/json MapRequest body)"
 	}
 }));
 
-app.MapGet("/v1/geocode", async (string q, IGeocoder geocoder, CancellationToken ct) =>
+app.MapGet("/v1/limits", () => Results.Ok(new
 {
-	var result = await geocoder.GeocodeAsync(q, ct);
+	maxWidth = options.MaxWidth,
+	maxHeight = options.MaxHeight,
+	maxScale = options.MaxScale
+}));
+
+app.MapGet("/v1/geocode", async (string q, string? lang, IGeocoder geocoder, CancellationToken ct) =>
+{
+	var result = await geocoder.GeocodeAsync(q, lang ?? options.DefaultLanguage, ct);
 	return result is null ? Results.NotFound(new { error = "No match." }) : Results.Ok(result);
 });
 
-app.MapGet("/v1/reverse", async (double lon, double lat, IGeocoder geocoder, CancellationToken ct) =>
+app.MapGet("/v1/reverse", async (double lon, double lat, string? lang, IGeocoder geocoder, CancellationToken ct) =>
 {
-	var result = await geocoder.ReverseAsync(new GeoPoint(lon, lat), ct);
+	var result = await geocoder.ReverseAsync(new GeoPoint(lon, lat), lang ?? options.DefaultLanguage, ct);
 	return result is null ? Results.NotFound(new { error = "No match." }) : Results.Ok(result);
 });
 
@@ -73,7 +82,7 @@ var staticMap = async (HttpRequest req, IGeocoder geocoder, IMapRenderer rendere
 
 	if (request.Center is null && !string.IsNullOrWhiteSpace(request.Location))
 	{
-		var geo = await geocoder.GeocodeAsync(request.Location!, ct);
+		var geo = await geocoder.GeocodeAsync(request.Location!, options.DefaultLanguage, ct);
 		if (geo is null)
 		{
 			return Results.BadRequest(new { error = $"Could not geocode location '{request.Location}'." });
@@ -91,10 +100,26 @@ app.MapGet("/v1/staticmap", staticMap);
 
 app.MapPost("/v1/staticmap", async (MapRequest request, IGeocoder geocoder, IMapRenderer renderer, CancellationToken ct) =>
 {
+	// Reject over-limit requests rather than silently shrinking them (issue #3).
+	if (request.Width > options.MaxWidth)
+	{
+		return Results.BadRequest(new { error = $"width {request.Width} exceeds the maximum of {options.MaxWidth}" });
+	}
+
+	if (request.Height > options.MaxHeight)
+	{
+		return Results.BadRequest(new { error = $"height {request.Height} exceeds the maximum of {options.MaxHeight}" });
+	}
+
+	if (request.Scale > options.MaxScale)
+	{
+		return Results.BadRequest(new { error = $"scale {request.Scale} exceeds the maximum of {options.MaxScale}" });
+	}
+
 	var resolved = request;
 	if (request.Center is null && !string.IsNullOrWhiteSpace(request.Location))
 	{
-		var geo = await geocoder.GeocodeAsync(request.Location!, ct);
+		var geo = await geocoder.GeocodeAsync(request.Location!, options.DefaultLanguage, ct);
 		if (geo is null)
 		{
 			return Results.BadRequest(new { error = $"Could not geocode location '{request.Location}'." });
@@ -105,9 +130,9 @@ app.MapPost("/v1/staticmap", async (MapRequest request, IGeocoder geocoder, IMap
 
 	resolved = resolved with
 	{
-		Width = Math.Clamp(resolved.Width, 1, options.MaxWidth),
-		Height = Math.Clamp(resolved.Height, 1, options.MaxHeight),
-		Scale = Math.Clamp(resolved.Scale, 1, options.MaxScale)
+		Width = Math.Max(1, resolved.Width),
+		Height = Math.Max(1, resolved.Height),
+		Scale = Math.Max(1, resolved.Scale)
 	};
 
 	var image = await renderer.RenderAsync(resolved, ct);

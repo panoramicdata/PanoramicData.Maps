@@ -34,6 +34,15 @@
 		<PackageReference Include="NetTopologySuite" />
 		<PackageReference Include="NetTopologySuite.IO.VectorTiles" />
 		<PackageReference Include="NetTopologySuite.IO.VectorTiles.Mapbox" />
+		<PackageReference Include="NetTopologySuite.IO.GeoJSON" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Reference data embedded into the assembly: ISO 3166-1 country table (country-code
+		     aliasing + region-code resolution) and Natural Earth admin-0 boundaries (public domain,
+		     1:110m) for named-region shading. -->
+		<EmbeddedResource Include="data\iso3166.txt" />
+		<EmbeddedResource Include="data\ne_110m_admin_0_countries.min.geojson" />
 	</ItemGroup>
 
 	<ItemGroup>

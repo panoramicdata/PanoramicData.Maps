@@ -17,15 +17,20 @@ public interface IGeocoder
 	/// Forward-geocodes a free-text query to its best match.
 	/// </summary>
 	/// <param name="query">The place/address text.</param>
+	/// <param name="language">
+	/// Optional result language ("en", "de", "fr", "it") passed to the backend so names come back in a
+	/// consistent script. Null uses the backend default.
+	/// </param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The best match, or <see langword="null"/> if nothing was found.</returns>
-	Task<GeocodeResult?> GeocodeAsync(string query, CancellationToken cancellationToken = default);
+	Task<GeocodeResult?> GeocodeAsync(string query, string? language = null, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	/// Reverse-geocodes a coordinate to the nearest place.
 	/// </summary>
 	/// <param name="point">The coordinate.</param>
+	/// <param name="language">Optional result language (see <see cref="GeocodeAsync"/>).</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The nearest place, or <see langword="null"/> if nothing was found.</returns>
-	Task<GeocodeResult?> ReverseAsync(GeoPoint point, CancellationToken cancellationToken = default);
+	Task<GeocodeResult?> ReverseAsync(GeoPoint point, string? language = null, CancellationToken cancellationToken = default);
 }

@@ -11,20 +11,28 @@ public sealed class PhotonGeocoder(HttpClient httpClient) : IGeocoder
 	private readonly HttpClient _httpClient = httpClient;
 
 	/// <inheritdoc />
-	public async Task<GeocodeResult?> GeocodeAsync(string query, CancellationToken cancellationToken = default)
+	public async Task<GeocodeResult?> GeocodeAsync(string query, string? language = null, CancellationToken cancellationToken = default)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(query);
-		var url = $"api?q={Uri.EscapeDataString(query)}&limit=1";
+
+		// Rewrite a bare country code / colloquial alias ("USA", "UK") to its canonical name so Photon
+		// does not rank a tiny same-spelling place above the country (issue #4).
+		var effective = Countries.ResolveName(query) ?? query;
+
+		var url = $"api?q={Uri.EscapeDataString(effective)}&limit=1{LangSuffix(language)}";
 		return await FirstFeatureAsync(url, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public async Task<GeocodeResult?> ReverseAsync(GeoPoint point, CancellationToken cancellationToken = default)
+	public async Task<GeocodeResult?> ReverseAsync(GeoPoint point, string? language = null, CancellationToken cancellationToken = default)
 	{
 		var lon = point.Longitude.ToString(CultureInfo.InvariantCulture);
 		var lat = point.Latitude.ToString(CultureInfo.InvariantCulture);
-		return await FirstFeatureAsync($"reverse?lon={lon}&lat={lat}", cancellationToken).ConfigureAwait(false);
+		return await FirstFeatureAsync($"reverse?lon={lon}&lat={lat}{LangSuffix(language)}", cancellationToken).ConfigureAwait(false);
 	}
+
+	private static string LangSuffix(string? language)
+		=> string.IsNullOrWhiteSpace(language) ? string.Empty : $"&lang={Uri.EscapeDataString(language.Trim())}";
 
 	private async Task<GeocodeResult?> FirstFeatureAsync(string relativeUrl, CancellationToken cancellationToken)
 	{

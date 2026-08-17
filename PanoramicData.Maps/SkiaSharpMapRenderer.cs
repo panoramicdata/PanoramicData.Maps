@@ -9,8 +9,9 @@ namespace PanoramicData.Maps;
 /// <summary>
 /// Renders maps natively (no headless browser): fetches Mapbox Vector Tiles from the tile service,
 /// decodes them, projects to Web-Mercator screen space and draws them with SkiaSharp, then draws the
-/// requested overlays. Milestone 1 uses a pragmatic basemap style keyed on Protomaps source-layer
-/// names; full MapLibre-style-JSON fidelity and labels are a later milestone.
+/// requested overlays. Draws point place-name labels from the tiles' label layers (issue #1) with
+/// halos and greedy collision avoidance; full MapLibre style-JSON fidelity (curved labels, road
+/// shields) remains a later milestone.
 /// </summary>
 public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOptions> options, ILogger<SkiaSharpMapRenderer> logger)
 	: IMapRenderer
@@ -19,6 +20,10 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 	private readonly MapsOptions _options = options.Value;
 	private readonly ILogger<SkiaSharpMapRenderer> _logger = logger;
 	private readonly MapboxTileReader _reader = new();
+
+	private static readonly string[] LabelLayers = ["places", "place", "poi", "pois"];
+
+	private sealed record LabelCandidate(string Text, float X, float Y, float Size, double Importance, bool Bold);
 
 	/// <inheritdoc />
 	public async Task<MapImage> RenderAsync(MapRequest request, CancellationToken cancellationToken = default)
@@ -35,6 +40,8 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		var left = WebMercator.LongitudeToX(center.Longitude, world) - width / 2.0;
 		var top = WebMercator.LatitudeToY(center.Latitude, world) - height / 2.0;
 
+		var styleUrl = string.IsNullOrWhiteSpace(request.StyleUrl) ? _options.TilesStyleUrl : request.StyleUrl!;
+
 		using var surface = SKSurface.Create(new SKImageInfo(width, height));
 		var canvas = surface.Canvas;
 		canvas.Clear(new SKColor(0xF2, 0xEF, 0xE9)); // land/background
@@ -45,15 +52,18 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		var tyMin = Math.Clamp((int)Math.Floor(top / WebMercator.TileSize), 0, maxTile);
 		var tyMax = Math.Clamp((int)Math.Floor((top + height) / WebMercator.TileSize), 0, maxTile);
 
+		var labels = new List<LabelCandidate>();
 		for (var ty = tyMin; ty <= tyMax; ty++)
 		{
 			for (var tx = txMin; tx <= txMax; tx++)
 			{
 				var wrappedX = ((tx % (maxTile + 1)) + (maxTile + 1)) % (maxTile + 1); // wrap antimeridian
-				await DrawTileAsync(canvas, wrappedX, ty, zoom, world, left, top, scale, cancellationToken).ConfigureAwait(false);
+				await DrawTileAsync(canvas, styleUrl, wrappedX, ty, zoom, world, left, top, scale, width, height, labels, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
+		DrawRegions(canvas, request, world, left, top, scale);
+		DrawPlaceLabels(canvas, labels, scale);
 		DrawOverlays(canvas, request, world, left, top, scale);
 		DrawAttribution(canvas, width, height, scale);
 
@@ -63,9 +73,9 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		return new MapImage(data.ToArray(), isPng ? "image/png" : "image/jpeg");
 	}
 
-	private async Task DrawTileAsync(SKCanvas canvas, int tx, int ty, int zoom, double world, double left, double top, int scale, CancellationToken ct)
+	private async Task DrawTileAsync(SKCanvas canvas, string styleUrl, int tx, int ty, int zoom, double world, double left, double top, int scale, int width, int height, List<LabelCandidate> labels, CancellationToken ct)
 	{
-		var url = TileUrl(zoom, tx, ty);
+		var url = TileUrl(styleUrl, zoom, tx, ty);
 		byte[] bytes;
 		try
 		{
@@ -96,6 +106,114 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		DrawLayer(canvas, vectorTile, ["buildings"], world, left, top, fill: new SKColor(0xE4, 0xDF, 0xD9), stroke: new SKColor(0xD0, 0xC9, 0xC0), strokeWidth: 0.5f * scale);
 		DrawLayer(canvas, vectorTile, ["roads", "transit"], world, left, top, stroke: new SKColor(0xFF, 0xFF, 0xFF), strokeWidth: 1.5f * scale, casing: new SKColor(0xCF, 0xC9, 0xC2));
 		DrawLayer(canvas, vectorTile, ["boundaries"], world, left, top, stroke: new SKColor(0x9E, 0x9C, 0xB0), strokeWidth: 1f * scale);
+
+		CollectLabels(vectorTile, world, left, top, scale, width, height, labels);
+	}
+
+	private static void CollectLabels(NetTopologySuite.IO.VectorTiles.VectorTile tile, double world, double left, double top, int scale, int width, int height, List<LabelCandidate> labels)
+	{
+		foreach (var layer in tile.Layers)
+		{
+			if (Array.IndexOf(LabelLayers, layer.Name) < 0)
+			{
+				continue;
+			}
+
+			foreach (var feature in layer.Features)
+			{
+				if (feature.Geometry is not Point pt || feature.Attributes is null)
+				{
+					continue;
+				}
+
+				var name = (feature.Attributes.GetOptionalValue("name:en") ?? feature.Attributes.GetOptionalValue("name")) as string;
+				if (string.IsNullOrWhiteSpace(name))
+				{
+					continue;
+				}
+
+				var sp = Project(pt.Coordinate, world, left, top);
+				if (sp.X < 0 || sp.Y < 0 || sp.X > width || sp.Y > height)
+				{
+					continue;
+				}
+
+				var kind = (feature.Attributes.GetOptionalValue("kind") ?? feature.Attributes.GetOptionalValue("class")) as string;
+				var population = ToDouble(feature.Attributes.GetOptionalValue("population"));
+				var (size, bold, kindBonus) = StyleForKind(kind, scale);
+				var importance = kindBonus + population;
+				labels.Add(new LabelCandidate(name!, sp.X, sp.Y, size, importance, bold));
+			}
+		}
+	}
+
+	private static (float Size, bool Bold, double KindBonus) StyleForKind(string? kind, int scale)
+		=> (kind?.ToLowerInvariant()) switch
+		{
+			"country" => (15f * scale, true, 1e12),
+			"region" or "state" or "province" => (13f * scale, true, 1e11),
+			"city" or "locality" => (12f * scale, false, 1e6),
+			"town" => (11f * scale, false, 1e5),
+			_ => (10.5f * scale, false, 0),
+		};
+
+	private static void DrawPlaceLabels(SKCanvas canvas, List<LabelCandidate> labels, int scale)
+	{
+		if (labels.Count == 0)
+		{
+			return;
+		}
+
+		var placed = new List<SKRect>();
+		using var fill = new SKPaint { Color = new SKColor(0x33, 0x33, 0x33), IsAntialias = true };
+		using var halo = new SKPaint { Color = new SKColor(0xFF, 0xFF, 0xFF, 0xE0), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2.5f * scale, StrokeJoin = SKStrokeJoin.Round };
+		var pad = 2f * scale;
+
+		foreach (var label in labels.OrderByDescending(l => l.Importance).ThenByDescending(l => l.Size))
+		{
+			using var font = new SKFont { Size = label.Size, Embolden = label.Bold };
+			var textWidth = font.MeasureText(label.Text);
+			var half = textWidth / 2f;
+			var rect = new SKRect(label.X - half - pad, label.Y - label.Size / 2f - pad, label.X + half + pad, label.Y + label.Size / 2f + pad);
+
+			if (placed.Any(r => r.IntersectsWith(rect)))
+			{
+				continue;
+			}
+
+			placed.Add(rect);
+			var baseline = label.Y + label.Size * 0.35f;
+			canvas.DrawText(label.Text, label.X, baseline, SKTextAlign.Center, font, halo);
+			canvas.DrawText(label.Text, label.X, baseline, SKTextAlign.Center, font, fill);
+		}
+	}
+
+	private void DrawRegions(SKCanvas canvas, MapRequest request, double world, double left, double top, int scale)
+	{
+		foreach (var region in request.Regions)
+		{
+			var alpha3 = Countries.ResolveAlpha3(region.Code);
+			if (alpha3 is null || !RegionBoundaries.TryGet(alpha3, out var geometry))
+			{
+				continue; // the parser already rejects unknown/boundary-less codes with a 400
+			}
+
+			using var path = ToPath(geometry, world, left, top);
+			if (path is null)
+			{
+				continue;
+			}
+
+			path.FillType = SKPathFillType.EvenOdd; // honour interior rings (e.g. Lesotho within South Africa)
+			using var fp = new SKPaint { Color = MapColors.Parse(region.FillColor, new SKColor(0xDC, 0x26, 0x26)).WithAlpha((byte)(Math.Clamp(region.FillOpacity, 0, 1) * 255)), IsAntialias = true, Style = SKPaintStyle.Fill };
+			canvas.DrawPath(path, fp);
+
+			if (!string.IsNullOrWhiteSpace(region.StrokeColor))
+			{
+				using var sp = new SKPaint { Color = MapColors.Parse(region.StrokeColor, new SKColor(0xB0, 0x1F, 0x1F)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)region.StrokeWidth * scale, StrokeJoin = SKStrokeJoin.Round };
+				canvas.DrawPath(path, sp);
+			}
+		}
 	}
 
 	private void DrawLayer(SKCanvas canvas, NetTopologySuite.IO.VectorTiles.VectorTile tile, string[] layerNames,
@@ -226,7 +344,8 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		{
 			var pt = Project(new Coordinate(m.Location.Longitude, m.Location.Latitude), world, left, top);
 			var r = (float)(9 * m.Scale) * scale;
-			using var body = new SKPaint { Color = MapColors.Parse(m.Color, fallbackMarker), IsAntialias = true, Style = SKPaintStyle.Fill };
+			var markerColor = MapColors.Parse(m.Color, fallbackMarker);
+			using var body = new SKPaint { Color = markerColor, IsAntialias = true, Style = SKPaintStyle.Fill };
 			using var outline = new SKPaint { Color = SKColors.White, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2f * scale };
 			using var tail = new SKPath();
 			tail.MoveTo(pt.X - r * 0.7f, pt.Y - r * 0.4f);
@@ -236,7 +355,26 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 			canvas.DrawPath(tail, body);
 			canvas.DrawCircle(pt.X, pt.Y - r, r, body);
 			canvas.DrawCircle(pt.X, pt.Y - r, r, outline);
+
+			DrawMarkerLabel(canvas, m.Label, markerColor, pt.X, pt.Y - r, r);
 		}
+	}
+
+	private static void DrawMarkerLabel(SKCanvas canvas, string? label, SKColor markerColor, float cx, float cy, float radius)
+	{
+		if (string.IsNullOrWhiteSpace(label))
+		{
+			return;
+		}
+
+		// Contrast against the pin fill: dark text on light fills (white/yellow), white on dark fills.
+		var luminance = (0.299 * markerColor.Red) + (0.587 * markerColor.Green) + (0.114 * markerColor.Blue);
+		var textColor = luminance > 150 ? SKColors.Black : SKColors.White;
+
+		using var font = new SKFont { Size = radius * 1.1f, Embolden = true };
+		using var paint = new SKPaint { Color = textColor, IsAntialias = true };
+		var baseline = cy + radius * 0.38f;
+		canvas.DrawText(label.Trim(), cx, baseline, SKTextAlign.Center, font, paint);
 	}
 
 	private static void DrawAttribution(SKCanvas canvas, int width, int height, int scale)
@@ -250,10 +388,28 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		canvas.DrawText(text, width - w - 4 * scale, height - 4f * scale, SKTextAlign.Left, font, fg);
 	}
 
-	private string TileUrl(int z, int x, int y)
+	private string TileUrl(string styleUrl, int z, int x, int y)
 	{
-		var baseUrl = _options.TilesStyleUrl.Replace("/style.json", string.Empty, StringComparison.OrdinalIgnoreCase).TrimEnd('/');
+		var baseUrl = styleUrl.Replace("/style.json", string.Empty, StringComparison.OrdinalIgnoreCase).TrimEnd('/');
 		return $"{baseUrl}/planet/{z}/{x}/{y}.mvt";
+	}
+
+	private static double ToDouble(object? value) => value switch
+	{
+		null => 0,
+		double d => d,
+		float f => f,
+		long l => l,
+		int i => i,
+		string s when double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) => v,
+		IConvertible c => SafeToDouble(c),
+		_ => 0,
+	};
+
+	private static double SafeToDouble(IConvertible c)
+	{
+		try { return c.ToDouble(System.Globalization.CultureInfo.InvariantCulture); }
+		catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException) { return 0; }
 	}
 
 	private static byte[] Gunzip(byte[] bytes)
