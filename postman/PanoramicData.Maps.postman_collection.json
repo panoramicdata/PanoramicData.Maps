@@ -1,0 +1,85 @@
+{
+  "info": {
+    "name": "PanoramicData.Maps",
+    "description": "Static map + geocoding service (Google-Static-Maps-compatible). Set the `maps_url` environment variable (no trailing slash):\n- Local:      http://localhost:8080\n- Test:       https://maps-test.panoramicdata.com\n- Production: https://maps.panoramicdata.com\n\nStatic-map requests return an image (PNG/JPEG). Coordinates use Google's lat,lng order. Rendered maps carry © OpenStreetMap attribution (ODbL).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "maps_url", "value": "http://localhost:8080", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "header": [],
+        "url": { "raw": "{{maps_url}}/health", "host": ["{{maps_url}}"], "path": ["health"] },
+        "description": "Liveness/readiness probe. Returns {\"status\":\"ok\"}." }
+    },
+    {
+      "name": "Usage",
+      "request": { "method": "GET", "header": [],
+        "url": { "raw": "{{maps_url}}/", "host": ["{{maps_url}}"], "path": [""] },
+        "description": "Lists the available endpoints." }
+    },
+    {
+      "name": "Geocode (forward)",
+      "request": { "method": "GET", "header": [],
+        "url": { "raw": "{{maps_url}}/v1/geocode?q=London", "host": ["{{maps_url}}"], "path": ["v1", "geocode"], "query": [ { "key": "q", "value": "London" } ] },
+        "description": "Forward geocode a place/address to coordinates (via Photon)." }
+    },
+    {
+      "name": "Reverse geocode",
+      "request": { "method": "GET", "header": [],
+        "url": { "raw": "{{maps_url}}/v1/reverse?lon=-0.1278&lat=51.5074", "host": ["{{maps_url}}"], "path": ["v1", "reverse"], "query": [ { "key": "lon", "value": "-0.1278" }, { "key": "lat", "value": "51.5074" } ] },
+        "description": "Reverse geocode coordinates to the nearest place." }
+    },
+    {
+      "name": "Static map - London (marker)",
+      "request": { "method": "GET", "header": [],
+        "url": { "raw": "{{maps_url}}/staticmap?center=51.5074,-0.1278&zoom=13&size=800x600&markers=color:red|label:A|51.5074,-0.1278",
+          "host": ["{{maps_url}}"], "path": ["staticmap"],
+          "query": [ { "key": "center", "value": "51.5074,-0.1278" }, { "key": "zoom", "value": "13" }, { "key": "size", "value": "800x600" }, { "key": "markers", "value": "color:red|label:A|51.5074,-0.1278" } ] },
+        "description": "Google-Static-Maps-compatible static map with a red marker. Returns a PNG." }
+    },
+    {
+      "name": "Static map - by place name (geocoded)",
+      "request": { "method": "GET", "header": [],
+        "url": { "raw": "{{maps_url}}/staticmap?center=Tokyo&zoom=12&size=600x400&markers=color:blue|35.6895,139.6917",
+          "host": ["{{maps_url}}"], "path": ["staticmap"],
+          "query": [ { "key": "center", "value": "Tokyo" }, { "key": "zoom", "value": "12" }, { "key": "size", "value": "600x400" }, { "key": "markers", "value": "color:blue|35.6895,139.6917" } ] },
+        "description": "`center` may be a place name - it is geocoded via Photon before rendering." }
+    },
+    {
+      "name": "Static map - path (polyline)",
+      "request": { "method": "GET", "header": [],
+        "url": { "raw": "{{maps_url}}/staticmap?center=51.5,-0.115&zoom=13&size=800x600&path=color:0xff0000ff|weight:5|51.50,-0.14|51.515,-0.09",
+          "host": ["{{maps_url}}"], "path": ["staticmap"],
+          "query": [ { "key": "center", "value": "51.5,-0.115" }, { "key": "zoom", "value": "13" }, { "key": "size", "value": "800x600" }, { "key": "path", "value": "color:0xff0000ff|weight:5|51.50,-0.14|51.515,-0.09" } ] },
+        "description": "A weighted red polyline overlay (color 0xRRGGBBAA)." }
+    },
+    {
+      "name": "Static map - polygon (fillcolor)",
+      "request": { "method": "GET", "header": [],
+        "url": { "raw": "{{maps_url}}/staticmap?center=51.505,-0.13&zoom=13&size=800x600&path=fillcolor:0x00800033|color:0x008000ff|weight:2|51.49,-0.16|51.52,-0.16|51.52,-0.10|51.49,-0.10",
+          "host": ["{{maps_url}}"], "path": ["staticmap"],
+          "query": [ { "key": "center", "value": "51.505,-0.13" }, { "key": "zoom", "value": "13" }, { "key": "size", "value": "800x600" }, { "key": "path", "value": "fillcolor:0x00800033|color:0x008000ff|weight:2|51.49,-0.16|51.52,-0.16|51.52,-0.10|51.49,-0.10" } ] },
+        "description": "Presence of `fillcolor` makes the path a filled polygon." }
+    },
+    {
+      "name": "Static map - v1 alias",
+      "request": { "method": "GET", "header": [],
+        "url": { "raw": "{{maps_url}}/v1/staticmap?center=40.7128,-74.006&zoom=12&size=600x400&markers=color:green|40.7128,-74.006",
+          "host": ["{{maps_url}}"], "path": ["v1", "staticmap"],
+          "query": [ { "key": "center", "value": "40.7128,-74.006" }, { "key": "zoom", "value": "12" }, { "key": "size", "value": "600x400" }, { "key": "markers", "value": "color:green|40.7128,-74.006" } ] },
+        "description": "/v1/staticmap is an alias of /staticmap." }
+    },
+    {
+      "name": "Static map - POST (JSON, rich overlays)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": { "mode": "raw", "raw": "{\n  \"location\": \"London\",\n  \"zoom\": 12,\n  \"width\": 800,\n  \"height\": 600,\n  \"markers\": [\n    { \"location\": { \"longitude\": -0.1278, \"latitude\": 51.5074 }, \"color\": \"#dc2626\", \"label\": \"HQ\" }\n  ],\n  \"paths\": [\n    { \"points\": [ { \"longitude\": -0.16, \"latitude\": 51.507 }, { \"longitude\": -0.07, \"latitude\": 51.508 } ], \"color\": \"#7c3aed\", \"width\": 5 }\n  ],\n  \"polygons\": [\n    { \"points\": [ { \"longitude\": -0.16, \"latitude\": 51.49 }, { \"longitude\": -0.16, \"latitude\": 51.52 }, { \"longitude\": -0.10, \"latitude\": 51.52 }, { \"longitude\": -0.10, \"latitude\": 51.49 } ], \"fillColor\": \"#f59e0b\", \"fillOpacity\": 0.2 }\n  ]\n}" },
+        "url": { "raw": "{{maps_url}}/v1/staticmap", "host": ["{{maps_url}}"], "path": ["v1", "staticmap"] },
+        "description": "Full-control JSON body (GeoPoint uses longitude,latitude). Best for rich overlays; `location` is geocoded if `center` is omitted." }
+    }
+  ]
+}
