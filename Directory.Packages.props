@@ -11,8 +11,12 @@
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.85" />
-    <!-- Server -->
-    <PackageVersion Include="Microsoft.Playwright" Version="1.49.0" />
+    <!-- Rendering (native MVT -> SkiaSharp; no headless browser) -->
+    <PackageVersion Include="SkiaSharp" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.119.4" />
+    <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
+    <PackageVersion Include="NetTopologySuite.IO.VectorTiles" Version="1.1.0" />
+    <PackageVersion Include="NetTopologySuite.IO.VectorTiles.Mapbox" Version="1.1.0" />
     <!-- Test -->
     <PackageVersion Include="AwesomeAssertions" Version="9.4.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />

@@ -32,6 +32,14 @@ public static class MapsServiceCollectionExtensions
 			client.BaseAddress = new Uri(baseUrl);
 		});
 
+		// Native SkiaSharp renderer (no headless browser). Its HttpClient auto-decompresses gzip
+		// tile responses.
+		services.AddHttpClient<IMapRenderer, SkiaSharpMapRenderer>()
+			.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+			{
+				AutomaticDecompression = System.Net.DecompressionMethods.All
+			});
+
 		return services;
 	}
 }

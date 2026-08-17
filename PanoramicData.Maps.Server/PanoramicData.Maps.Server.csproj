@@ -23,8 +23,4 @@
 		<ProjectReference Include="..\PanoramicData.Maps\PanoramicData.Maps.csproj" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<PackageReference Include="Microsoft.Playwright" />
-	</ItemGroup>
-
 </Project>

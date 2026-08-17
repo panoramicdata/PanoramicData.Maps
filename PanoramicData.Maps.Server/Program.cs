@@ -1,12 +1,11 @@
 using System.Globalization;
 using Microsoft.Extensions.Options;
 using PanoramicData.Maps;
-using PanoramicData.Maps.Server;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Registers options, the Photon geocoder and the native SkiaSharp renderer.
 builder.Services.AddPanoramicDataMaps(builder.Configuration);
-builder.Services.AddSingleton<IMapRenderer, PlaywrightMapRenderer>();
 
 var app = builder.Build();
 
