@@ -31,11 +31,22 @@ app.Use(async (context, next) =>
 	await next();
 });
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+// The running build's identity belongs on the health surface: this service runs in two clusters and
+// is consumed from every Magic Suite environment, so "which build is answering?" has to be a request
+// away rather than a cluster inspection (issue #11).
+var serviceInfo = MapsServiceInfo.Current;
+
+app.MapGet("/health", () => Results.Ok(new
+{
+	status = "ok",
+	version = serviceInfo.Version,
+	commit = serviceInfo.Commit
+}));
 
 app.MapGet("/", () => Results.Ok(new
 {
 	name = "PanoramicData.Maps",
+	version = serviceInfo.Version,
 	endpoints = new[]
 	{
 		"GET /v1/geocode?q=London&lang=en",

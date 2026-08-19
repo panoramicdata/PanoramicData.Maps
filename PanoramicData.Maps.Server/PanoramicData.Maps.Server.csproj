@@ -20,6 +20,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- So /health reports the release version rather than the SDK default of 1.0.0 (issue #11):
+		     Nerdbank.GitVersioning stamps the assembly of the project that references it. -->
+		<PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<ProjectReference Include="..\PanoramicData.Maps\PanoramicData.Maps.csproj" />
 	</ItemGroup>
 

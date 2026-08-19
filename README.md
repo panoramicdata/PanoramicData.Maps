@@ -35,7 +35,7 @@ screenshotting the result, so any MapLibre style and overlay works exactly as it
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /health` | Liveness. |
+| `GET /health` | Liveness, plus the running build: `{"status":"ok","version":"0.2.2","commit":"dbb8e819f0"}`. |
 | `GET /` | Usage summary. |
 | `GET /v1/geocode?q=London` | Forward geocode (via Photon). |
 | `GET /v1/reverse?lon=-0.1278&lat=51.5074` | Reverse geocode. |
