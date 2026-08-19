@@ -10,7 +10,7 @@ namespace PanoramicData.Maps.Test;
 
 public class SkiaSharpMapRendererTests
 {
-	// Returns 404 for every tile, so the renderer draws the land background + overlays only -
+	// Returns 404 for every tile, so the renderer draws the no-data background + overlays only -
 	// enough to exercise projection, overlay drawing and PNG encoding without a real tile server.
 	private sealed class NoTilesHandler : HttpMessageHandler
 	{
@@ -39,11 +39,9 @@ public class SkiaSharpMapRendererTests
 		bmp.Width.Should().Be(200);
 		bmp.Height.Should().Be(150);
 
-		// Top-left corner should be the land background (no tile, no overlay there).
-		var corner = bmp.GetPixel(1, 1);
-		corner.Red.Should().Be(0xF2);
-		corner.Green.Should().Be(0xEF);
-		corner.Blue.Should().Be(0xE9);
+		// No tile could be fetched here, so the corner is the no-data colour. It is deliberately neither
+		// land nor sea: painting the background land-coloured invented land in the ocean (issue #13).
+		bmp.GetPixel(1, 1).Should().Be(new SKColor(0xCC, 0xCC, 0xCC));
 	}
 
 	[Fact]

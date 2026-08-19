@@ -93,7 +93,7 @@ public class MarkerRenderingTests
 		// threshold used here. The silhouette still has to cover the anchor pixel, which is asserted
 		// separately below rather than by loosening this bound further.
 		bounds.Bottom.Should().BeInRange(anchorY - 3, anchorY + 2, "the pin's tip is its anchor");
-		bmp.GetPixel(anchorX, anchorY).Should().NotBe(new SKColor(0xF2, 0xEF, 0xE9), "the pin covers the coordinate it points at");
+		bmp.GetPixel(anchorX, anchorY).Should().NotBe(new SKColor(0xCC, 0xCC, 0xCC), "the pin covers the coordinate it points at");
 		bounds.Top.Should().BeLessThan(anchorY - 30, "the body of the pin is above the anchor");
 		bounds.MidX.Should().BeInRange(anchorX - 2, anchorX + 2, "the pin is horizontally centred on its anchor");
 	}

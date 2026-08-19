@@ -23,6 +23,15 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 
 	private static readonly string[] LabelLayers = ["places", "place", "poi", "pois"];
 
+	/// <summary>The land fill, from the reference style's <c>earth</c> layer.</summary>
+	private static readonly SKColor EarthColor = new(0xE2, 0xDF, 0xDA);
+
+	/// <summary>
+	/// Drawn where no tile could be fetched. The reference style's own background colour, chosen because
+	/// it reads as neither land nor sea - a missing tile should look like missing data, not like geography.
+	/// </summary>
+	private static readonly SKColor NoDataColor = new(0xCC, 0xCC, 0xCC);
+
 	private sealed record LabelCandidate(string Text, float X, float Y, float Size, double Importance, bool Bold);
 
 	/// <inheritdoc />
@@ -44,7 +53,11 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 
 		using var surface = SKSurface.Create(new SKImageInfo(width, height));
 		var canvas = surface.Canvas;
-		canvas.Clear(new SKColor(0xF2, 0xEF, 0xE9)); // land/background
+
+		// Neither land nor sea: land comes from the tiles' 'earth' layer and sea from 'water', exactly as
+		// in the reference style, whose background is this same neutral grey. Clearing to the land colour
+		// instead - as this renderer used to - fabricated land wherever a tile failed to arrive (issue #13).
+		canvas.Clear(NoDataColor);
 
 		var maxTile = WebMercator.MaxTileIndex(zoom);
 		var txMin = (int)Math.Floor(left / WebMercator.TileSize);
@@ -53,13 +66,26 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		var tyMax = Math.Clamp((int)Math.Floor((top + height) / WebMercator.TileSize), 0, maxTile);
 
 		var labels = new List<LabelCandidate>();
+		var requested = 0;
+		var failed = 0;
 		for (var ty = tyMin; ty <= tyMax; ty++)
 		{
 			for (var tx = txMin; tx <= txMax; tx++)
 			{
 				var wrappedX = ((tx % (maxTile + 1)) + (maxTile + 1)) % (maxTile + 1); // wrap antimeridian
-				await DrawTileAsync(canvas, styleUrl, wrappedX, ty, zoom, world, left, top, scale, width, height, labels, cancellationToken).ConfigureAwait(false);
+				requested++;
+				if (!await DrawTileAsync(canvas, styleUrl, wrappedX, ty, zoom, world, left, top, scale, width, height, labels, cancellationToken).ConfigureAwait(false))
+				{
+					failed++;
+				}
 			}
+		}
+
+		if (failed > 0)
+		{
+			// The tile service returns data for every tile of the planet, so a failure is a fault rather
+			// than an area with no coverage - and the resulting no-data patches are otherwise silent.
+			_logger.LogWarning("{Failed} of {Requested} tiles could not be fetched at zoom {Zoom}; those areas are drawn as no-data.", failed, requested, zoom);
 		}
 
 		DrawRegions(canvas, request, world, left, top, scale);
@@ -73,7 +99,8 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		return new MapImage(data.ToArray(), isPng ? "image/png" : "image/jpeg");
 	}
 
-	private async Task DrawTileAsync(SKCanvas canvas, string styleUrl, int tx, int ty, int zoom, double world, double left, double top, int scale, int width, int height, List<LabelCandidate> labels, CancellationToken ct)
+	/// <summary>Fetches and draws one tile. Returns false when the tile could not be fetched or was empty.</summary>
+	private async Task<bool> DrawTileAsync(SKCanvas canvas, string styleUrl, int tx, int ty, int zoom, double world, double left, double top, int scale, int width, int height, List<LabelCandidate> labels, CancellationToken ct)
 	{
 		var url = TileUrl(styleUrl, zoom, tx, ty);
 		byte[] bytes;
@@ -82,25 +109,27 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 			using var resp = await _httpClient.GetAsync(url, ct).ConfigureAwait(false);
 			if (!resp.IsSuccessStatusCode)
 			{
-				return; // missing tile (e.g. ocean) - background already drawn
+				_logger.LogDebug("Tile {Url} returned {StatusCode}", url, (int)resp.StatusCode);
+				return false;
 			}
 
 			bytes = await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
-			_logger.LogWarning(ex, "Failed to fetch tile {Url}", url);
-			return;
+			_logger.LogDebug(ex, "Failed to fetch tile {Url}", url);
+			return false;
 		}
 
 		if (bytes.Length == 0)
 		{
-			return;
+			return false;
 		}
 
 		using var ms = new MemoryStream(Gunzip(bytes));
 		var vectorTile = _reader.Read(ms, new NetTopologySuite.IO.VectorTiles.Tiles.Tile(tx, ty, zoom));
 
+		DrawLayer(canvas, vectorTile, ["earth"], world, left, top, fill: EarthColor);
 		DrawLayer(canvas, vectorTile, ["water"], world, left, top, fill: new SKColor(0xA0, 0xC8, 0xF0));
 		DrawStyledFills(canvas, vectorTile, "landcover", world, left, top, zoom);
 		DrawStyledFills(canvas, vectorTile, "landuse", world, left, top, zoom);
@@ -109,6 +138,7 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		DrawLayer(canvas, vectorTile, ["boundaries"], world, left, top, stroke: new SKColor(0x9E, 0x9C, 0xB0), strokeWidth: 1f * scale);
 
 		CollectLabels(vectorTile, world, left, top, scale, width, height, labels);
+		return true;
 	}
 
 	private static void CollectLabels(NetTopologySuite.IO.VectorTiles.VectorTile tile, double world, double left, double top, int scale, int width, int height, List<LabelCandidate> labels)
