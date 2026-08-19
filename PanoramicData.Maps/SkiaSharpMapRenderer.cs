@@ -102,7 +102,8 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		var vectorTile = _reader.Read(ms, new NetTopologySuite.IO.VectorTiles.Tiles.Tile(tx, ty, zoom));
 
 		DrawLayer(canvas, vectorTile, ["water"], world, left, top, fill: new SKColor(0xA0, 0xC8, 0xF0));
-		DrawLayer(canvas, vectorTile, ["landuse", "landcover", "natural"], world, left, top, fill: new SKColor(0xD6, 0xE3, 0xCE));
+		DrawStyledFills(canvas, vectorTile, "landcover", world, left, top, zoom);
+		DrawStyledFills(canvas, vectorTile, "landuse", world, left, top, zoom);
 		DrawLayer(canvas, vectorTile, ["buildings"], world, left, top, fill: new SKColor(0xE4, 0xDF, 0xD9), stroke: new SKColor(0xD0, 0xC9, 0xC0), strokeWidth: 0.5f * scale);
 		DrawLayer(canvas, vectorTile, ["roads", "transit"], world, left, top, stroke: new SKColor(0xFF, 0xFF, 0xFF), strokeWidth: 1.5f * scale, casing: new SKColor(0xCF, 0xC9, 0xC2));
 		DrawLayer(canvas, vectorTile, ["boundaries"], world, left, top, stroke: new SKColor(0x9E, 0x9C, 0xB0), strokeWidth: 1f * scale);
@@ -212,6 +213,46 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 			{
 				using var sp = new SKPaint { Color = MapColors.Parse(region.StrokeColor, new SKColor(0xB0, 0x1F, 0x1F)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)region.StrokeWidth * scale, StrokeJoin = SKStrokeJoin.Round };
 				canvas.DrawPath(path, sp);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Draws one source layer's polygons, styling each feature by its <c>kind</c> and the current zoom
+	/// through <see cref="BaseMapStyle"/> - the rules the tile service's own style JSON applies. A
+	/// feature the reference style paints nothing for is skipped, which is what keeps marine protected
+	/// areas out of the ocean at low zoom (issue #10) and towns from rendering as parkland.
+	/// </summary>
+	private static void DrawStyledFills(SKCanvas canvas, NetTopologySuite.IO.VectorTiles.VectorTile tile,
+		string layerName, double world, double left, double top, double zoom)
+	{
+		foreach (var layer in tile.Layers)
+		{
+			if (!string.Equals(layer.Name, layerName, StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			foreach (var feature in layer.Features)
+			{
+				var kind = feature.Attributes?.GetOptionalValue("kind") as string;
+				if (BaseMapStyle.FillFor(layerName, kind, zoom) is not { } color)
+				{
+					continue;
+				}
+
+				var path = ToPath(feature.Geometry, world, left, top);
+				if (path is null)
+				{
+					continue;
+				}
+
+				using (path)
+				{
+					path.FillType = SKPathFillType.EvenOdd; // honour interior rings (e.g. a lake in a park)
+					using var paint = new SKPaint { Color = color, IsAntialias = true, Style = SKPaintStyle.Fill };
+					canvas.DrawPath(path, paint);
+				}
 			}
 		}
 	}
