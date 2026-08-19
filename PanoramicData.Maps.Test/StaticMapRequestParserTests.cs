@@ -142,12 +142,28 @@ public class StaticMapRequestParserTests
 		r.Markers[1].Location.Longitude.Should().BeApproximately(0.0, 1e-6);
 	}
 
-	[Fact]
-	public void Parse_MarkerSize_MapsToScale()
+	[Theory]
+	[InlineData("tiny", 0.4)]
+	[InlineData("small", 0.55)]
+	[InlineData("mid", 0.8)]
+	[InlineData("normal", 1.0)]
+	public void Parse_MarkerSize_MapsToTheSharedScale(string size, double expected)
 	{
-		StaticMapRequestParser.TryParse(Q(("markers", "size:tiny|51.5,-0.12")), Options, out var r, out _).Should().BeTrue();
+		// One source of truth with the renderer: 'mid' used to map to the same scale as 'normal', so
+		// Magic Suite's default marker size drew a 'normal' pin (issue #9).
+		StaticMapRequestParser.TryParse(Q(("markers", $"size:{size}|51.5,-0.12")), Options, out var r, out _).Should().BeTrue();
 		r.Markers.Should().ContainSingle();
-		r.Markers[0].Scale.Should().Be(0.5);
+		r.Markers[0].Scale.Should().Be(expected).And.Be(MarkerMetrics.ScaleForSize(size));
+	}
+
+	[Fact]
+	public void Parse_MarkerSize_IsCaseInsensitiveAndFallsBackToNormal()
+	{
+		StaticMapRequestParser.TryParse(Q(("markers", "size:MID|51.5,-0.12")), Options, out var upper, out _).Should().BeTrue();
+		upper.Markers[0].Scale.Should().Be(0.8);
+
+		StaticMapRequestParser.TryParse(Q(("markers", "size:gigantic|51.5,-0.12")), Options, out var unknown, out _).Should().BeTrue();
+		unknown.Markers[0].Scale.Should().Be(1.0);
 	}
 
 	[Fact]

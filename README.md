@@ -45,6 +45,26 @@ screenshotting the result, so any MapLibre style and overlay works exactly as it
 `center`/marker coordinates in the query API are `lat,lon` (Google-compatible). Set `location=` (a
 place name) instead of `center=` to have it geocoded. `format=png` (default) or `jpeg`.
 
+### Markers
+
+Markers are drawn as Google-style teardrop pins, anchored at the tip, so a coordinate is where the
+pin points. `size:` accepts Google's four names, each a visibly different pin:
+
+| `size:` | Pin (CSS pixels) |
+|---------|------------------|
+| `tiny`   | 9 x 16 |
+| `small`  | 12 x 22 |
+| `mid`    | 18 x 32 |
+| `normal` (default) | 22 x 40 |
+
+`scale:` sets an arbitrary relative size instead, and the image's own `scale=2` doubles everything for
+@2x output. Two deliberate differences from Google: a `label:` is drawn at **every** size (Google drops
+it on its two smallest), because a small marker in a report still needs its identity; and a label of
+more than one character is shrunk to fit the pin head rather than spilling over it.
+
+`icon:` is accepted for compatibility but **not yet drawn** - a default pin is drawn and a warning is
+logged. See issue #12.
+
 ### Example POST body
 
 ```json

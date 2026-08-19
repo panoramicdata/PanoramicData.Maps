@@ -64,7 +64,7 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 
 		DrawRegions(canvas, request, world, left, top, scale);
 		DrawPlaceLabels(canvas, labels, scale);
-		DrawOverlays(canvas, request, world, left, top, scale);
+		DrawOverlays(canvas, request, world, left, top, scale, _logger);
 		DrawAttribution(canvas, width, height, scale);
 
 		using var image = surface.Snapshot();
@@ -360,7 +360,7 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 	private static SKPoint Project(Coordinate c, double world, double left, double top)
 		=> new((float)(WebMercator.LongitudeToX(c.X, world) - left), (float)(WebMercator.LatitudeToY(c.Y, world) - top));
 
-	private static void DrawOverlays(SKCanvas canvas, MapRequest request, double world, double left, double top, int scale)
+	private static void DrawOverlays(SKCanvas canvas, MapRequest request, double world, double left, double top, int scale, ILogger logger)
 	{
 		foreach (var poly in request.Polygons)
 		{
@@ -383,25 +383,75 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		var fallbackMarker = new SKColor(0xDC, 0x26, 0x26);
 		foreach (var m in request.Markers)
 		{
-			var pt = Project(new Coordinate(m.Location.Longitude, m.Location.Latitude), world, left, top);
-			var r = (float)(9 * m.Scale) * scale;
-			var markerColor = MapColors.Parse(m.Color, fallbackMarker);
-			using var body = new SKPaint { Color = markerColor, IsAntialias = true, Style = SKPaintStyle.Fill };
-			using var outline = new SKPaint { Color = SKColors.White, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2f * scale };
-			using var tail = new SKPath();
-			tail.MoveTo(pt.X - r * 0.7f, pt.Y - r * 0.4f);
-			tail.LineTo(pt.X, pt.Y);
-			tail.LineTo(pt.X + r * 0.7f, pt.Y - r * 0.4f);
-			tail.Close();
-			canvas.DrawPath(tail, body);
-			canvas.DrawCircle(pt.X, pt.Y - r, r, body);
-			canvas.DrawCircle(pt.X, pt.Y - r, r, outline);
+			if (!string.IsNullOrWhiteSpace(m.Icon))
+			{
+				// Accepted for Google compatibility but not yet drawn. Say so rather than silently
+				// returning a default pin, which reads as the icon having been honoured.
+				logger.LogWarning("Marker icon '{Icon}' was requested but custom marker icons are not implemented; drawing the default pin.", m.Icon);
+			}
 
-			DrawMarkerLabel(canvas, m.Label, markerColor, pt.X, pt.Y - r, r);
+			var pt = Project(new Coordinate(m.Location.Longitude, m.Location.Latitude), world, left, top);
+			var metrics = MarkerMetrics.For(m.Scale, scale);
+			var markerColor = MapColors.Parse(m.Color, fallbackMarker);
+
+			using var pin = BuildPinPath(pt.X, pt.Y, metrics);
+			using var body = new SKPaint { Color = markerColor, IsAntialias = true, Style = SKPaintStyle.Fill };
+			using var outline = new SKPaint
+			{
+				Color = SKColors.White,
+				IsAntialias = true,
+				Style = SKPaintStyle.Stroke,
+				StrokeWidth = Math.Max(1f, metrics.Width * 0.09f),
+				StrokeJoin = SKStrokeJoin.Round
+			};
+			// Outline first, body over it: a centred stroke drawn last would eat into the sharp tip, so
+			// the pin would stop short of the coordinate it is meant to point at.
+			canvas.DrawPath(pin, outline);
+			canvas.DrawPath(pin, body);
+
+			DrawMarkerLabel(canvas, m.Label, markerColor, pt.X, metrics.HeadCenterY(pt.Y), metrics);
 		}
 	}
 
-	private static void DrawMarkerLabel(SKCanvas canvas, string? label, SKColor markerColor, float cx, float cy, float radius)
+	/// <summary>
+	/// Builds the teardrop pin: a circular head with a tapering tail down to the anchor, unioned so the
+	/// white outline traces the silhouette rather than cutting a chord across the head. The tail's base
+	/// sits below the head centre, which is what makes it read as a pin - drawing it above the centre
+	/// hid it inside the head and left a bare dot (issue #9).
+	/// </summary>
+	private static SKPath BuildPinPath(float anchorX, float anchorY, MarkerMetrics metrics)
+	{
+		var radius = metrics.HeadRadius;
+		var headCenterY = metrics.HeadCenterY(anchorY);
+
+		using var head = new SKPath();
+		head.AddCircle(anchorX, headCenterY, radius);
+
+		using var tail = new SKPath();
+		tail.MoveTo(anchorX - (radius * 0.80f), headCenterY + (radius * 0.60f));
+		tail.LineTo(anchorX, metrics.TipY(anchorY));
+		tail.LineTo(anchorX + (radius * 0.80f), headCenterY + (radius * 0.60f));
+		tail.Close();
+
+		if (head.Op(tail, SKPathOp.Union) is { } union)
+		{
+			return union;
+		}
+
+		// Path arithmetic is optional in Skia builds; falling back to both subpaths still draws a pin,
+		// with a faint chord where they meet.
+		var combined = new SKPath();
+		combined.AddPath(head);
+		combined.AddPath(tail);
+		return combined;
+	}
+
+	/// <summary>
+	/// Draws a marker's label inside the pin head, sized from the head rather than the whole pin.
+	/// Google suppresses labels on its two smallest sizes; this renderer draws them at every size on
+	/// purpose, so a small marker still carries its identity in a report.
+	/// </summary>
+	private static void DrawMarkerLabel(SKCanvas canvas, string? label, SKColor markerColor, float cx, float headCenterY, MarkerMetrics metrics)
 	{
 		if (string.IsNullOrWhiteSpace(label))
 		{
@@ -412,10 +462,20 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		var luminance = (0.299 * markerColor.Red) + (0.587 * markerColor.Green) + (0.114 * markerColor.Blue);
 		var textColor = luminance > 150 ? SKColors.Black : SKColors.White;
 
-		using var font = new SKFont { Size = radius * 1.1f, Embolden = true };
+		var text = label.Trim();
+		using var font = new SKFont { Size = metrics.LabelFontSize, Embolden = true };
+
+		// A multi-character label would otherwise overflow the head; shrink it to fit the way a map pin
+		// has to, rather than letting it spill over the outline.
+		var maxWidth = metrics.HeadRadius * 1.6f;
+		var measured = font.MeasureText(text);
+		if (measured > maxWidth && measured > 0)
+		{
+			font.Size *= maxWidth / measured;
+		}
+
 		using var paint = new SKPaint { Color = textColor, IsAntialias = true };
-		var baseline = cy + radius * 0.38f;
-		canvas.DrawText(label.Trim(), cx, baseline, SKTextAlign.Center, font, paint);
+		canvas.DrawText(text, cx, headCenterY + (font.Size * 0.36f), SKTextAlign.Center, font, paint);
 	}
 
 	private static void DrawAttribution(SKCanvas canvas, int width, int height, int scale)

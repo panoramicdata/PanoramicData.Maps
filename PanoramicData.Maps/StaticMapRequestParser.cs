@@ -135,7 +135,7 @@ public static class StaticMapRequestParser
 			else if (TryDescriptor(part, "label", out var l)) { label = l; }
 			else if (TryDescriptor(part, "icon", out var i)) { icon = i; }
 			else if (TryDescriptor(part, "scale", out var sc) && double.TryParse(sc, NumberStyles.Float, CultureInfo.InvariantCulture, out var scv)) { markerScale = scv; }
-			else if (TryDescriptor(part, "size", out var sz)) { markerScale = SizeToScale(sz); }
+			else if (TryDescriptor(part, "size", out var sz)) { markerScale = MarkerMetrics.ScaleForSize(sz); }
 			else if (TryLatLng(part, out var gp)) { locations.Add(gp); }
 			// non-lat,lng location tokens (place names) are not supported per-marker yet - ignored.
 		}
@@ -262,14 +262,6 @@ public static class StaticMapRequestParser
 		}
 	}
 
-	private static double SizeToScale(string size) => size.ToLowerInvariant() switch
-	{
-		"tiny" => 0.5,
-		"small" => 0.7,
-		"mid" => 1.0,
-		"normal" => 1.0,
-		_ => 1.0
-	};
 
 	private static MapImageFormat FormatOf(string? format)
 		=> format is not null && (format.StartsWith("jpg", StringComparison.OrdinalIgnoreCase) || format.StartsWith("jpeg", StringComparison.OrdinalIgnoreCase))
