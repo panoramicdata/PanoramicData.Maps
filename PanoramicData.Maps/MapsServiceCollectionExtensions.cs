@@ -10,7 +10,8 @@ namespace PanoramicData.Maps;
 public static class MapsServiceCollectionExtensions
 {
 	/// <summary>
-	/// Registers <see cref="MapsOptions"/> and the Photon-backed <see cref="IGeocoder"/>.
+	/// Registers <see cref="MapsOptions"/>, the Photon-backed <see cref="IGeocoder"/> and the
+	/// <see cref="SpriteSheetProvider"/> used for named marker icons.
 	/// The <see cref="IMapRenderer"/> is registered separately by the hosting application.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -31,6 +32,9 @@ public static class MapsServiceCollectionExtensions
 			var baseUrl = options.PhotonBaseUrl.TrimEnd('/') + "/";
 			client.BaseAddress = new Uri(baseUrl);
 		});
+
+		// Named marker icons come from the style's own sprite sheet, cached for the process lifetime.
+		services.AddHttpClient<SpriteSheetProvider>();
 
 		// Native SkiaSharp renderer (no headless browser). Its HttpClient auto-decompresses gzip
 		// tile responses.

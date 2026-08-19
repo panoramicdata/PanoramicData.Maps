@@ -19,6 +19,12 @@ public readonly record struct MarkerMetrics(float Width, float Height)
 	/// <summary>Height of a 'normal' Google pin, in CSS pixels.</summary>
 	private const float NormalHeight = 40f;
 
+	/// <summary>
+	/// How much larger or smaller this marker is than a Google 'normal' pin - marker scale multiplied by
+	/// the image's device scale. Used to size sprite icons consistently with pins.
+	/// </summary>
+	public float ScaleFactor => Width / NormalWidth;
+
 	/// <summary>Radius of the pin's circular head.</summary>
 	public float HeadRadius => Width / 2f;
 

@@ -39,6 +39,7 @@ screenshotting the result, so any MapLibre style and overlay works exactly as it
 | `GET /` | Usage summary. |
 | `GET /v1/geocode?q=London` | Forward geocode (via Photon). |
 | `GET /v1/reverse?lon=-0.1278&lat=51.5074` | Reverse geocode. |
+| `GET /v1/icons` | Named marker icons available to `markers=icon:<name>`. |
 | `GET /v1/staticmap?center=51.5074,-0.1278&zoom=12&size=800x600&markers=51.5074,-0.1278,red,London` | Static map image (simple query form). |
 | `POST /v1/staticmap` | Static map image (JSON `MapRequest` body — full markers/paths/polygons). |
 
@@ -62,8 +63,23 @@ pin points. `size:` accepts Google's four names, each a visibly different pin:
 it on its two smallest), because a small marker in a report still needs its identity; and a label of
 more than one character is shrunk to fit the pin head rather than spilling over it.
 
-`icon:` is accepted for compatibility but **not yet drawn** - a default pin is drawn and a warning is
-logged. See issue #12.
+### Marker icons
+
+`markers=icon:<name>|<lat>,<lng>` draws a named icon from the map style's own sprite sheet instead of a
+pin - `cafe`, `train_station`, `museum`, `peak`, `bar` and about fifty others. `GET /v1/icons` lists
+what the configured style offers, because the names are not guessable.
+
+- An icon is **centred on its coordinate** (these are point glyphs, not pins), and `size:`/`scale:` size
+  it just as they size a pin.
+- A `label:` alongside an icon is drawn underneath it with a halo, rather than over the glyph.
+- An unknown name falls back to a pin and logs a warning, so a typo does not silently change the map.
+- **Remote icon URLs are rejected** with a 400. Fetching caller-supplied URLs from a public service is an
+  SSRF exposure, not a convenience; the sprite sheet comes from the same host as the tiles and nothing
+  else is ever contacted.
+
+The sprite URL is normally discovered from the style JSON's `sprite` field. Set `Maps__SpriteUrl` when
+that URL is not reachable from wherever the renderer runs (a common case when the style advertises a
+public hostname and the renderer resolves an internal one).
 
 ### Example POST body
 
@@ -83,6 +99,7 @@ logged. See issue #12.
 |-----|---------|---------|
 | `Maps__PhotonBaseUrl` | `https://photon.panoramicdata.com` | Photon geocoder base URL. |
 | `Maps__TilesStyleUrl` | `https://tiles.panoramicdata.com/style.json` | MapLibre style JSON from the tile service. |
+| `Maps__SpriteUrl` | — | Sprite base URL for named marker icons, without `.json`/`.png`. Discovered from the style when unset. |
 | `Maps__RequireApiKey` | `false` | When `true`, `/v1/*` requires an API key (`X-Api-Key` header or `?key=`). |
 | `Maps__ApiKeys__0` … | — | Accepted API keys. |
 | `Maps__MaxWidth` / `MaxHeight` / `MaxScale` | 2048 / 2048 / 2 | Output caps. |

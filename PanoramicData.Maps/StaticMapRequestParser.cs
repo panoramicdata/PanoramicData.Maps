@@ -78,7 +78,10 @@ public static class StaticMapRequestParser
 		var markers = new List<MarkerSpec>();
 		foreach (var group in All(query, "markers"))
 		{
-			ParseMarkerGroup(group, markers);
+			if (!ParseMarkerGroup(group, markers, out error))
+			{
+				return false;
+			}
 		}
 
 		var paths = new List<PathSpec>();
@@ -121,8 +124,14 @@ public static class StaticMapRequestParser
 		return true;
 	}
 
-	private static void ParseMarkerGroup(string group, List<MarkerSpec> into)
+	/// <summary>
+	/// Parses one <c>markers</c> group. A remote <c>icon:</c> URL is rejected rather than quietly
+	/// replaced with a pin: fetching caller-supplied URLs from a public service is a decision about
+	/// SSRF exposure, and named sprite icons cover the useful cases (issue #12).
+	/// </summary>
+	private static bool ParseMarkerGroup(string group, List<MarkerSpec> into, out string? error)
 	{
+		error = null;
 		string color = "red";
 		string? label = null;
 		double markerScale = 1.0;
@@ -140,11 +149,25 @@ public static class StaticMapRequestParser
 			// non-lat,lng location tokens (place names) are not supported per-marker yet - ignored.
 		}
 
+		if (icon is not null && LooksLikeUrl(icon))
+		{
+			error = $"A marker 'icon' must name an icon from the map style's sprite sheet (for example icon:cafe); "
+				+ $"remote icon URLs such as '{icon}' are not supported. GET /v1/icons lists the available names.";
+			return false;
+		}
+
 		foreach (var loc in locations)
 		{
 			into.Add(new MarkerSpec { Location = loc, Color = color, Label = label, Icon = icon, Scale = markerScale });
 		}
+
+		return true;
 	}
+
+	private static bool LooksLikeUrl(string icon)
+		=> icon.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+			|| icon.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+			|| icon.StartsWith("//", StringComparison.Ordinal);
 
 	private static void ParsePathGroup(string group, List<PathSpec> paths, List<PolygonSpec> polygons)
 	{

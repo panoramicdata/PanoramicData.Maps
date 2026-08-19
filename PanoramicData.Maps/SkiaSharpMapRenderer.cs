@@ -13,12 +13,17 @@ namespace PanoramicData.Maps;
 /// halos and greedy collision avoidance; full MapLibre style-JSON fidelity (curved labels, road
 /// shields) remains a later milestone.
 /// </summary>
-public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOptions> options, ILogger<SkiaSharpMapRenderer> logger)
+public sealed class SkiaSharpMapRenderer(
+	HttpClient httpClient,
+	IOptions<MapsOptions> options,
+	ILogger<SkiaSharpMapRenderer> logger,
+	SpriteSheetProvider? spriteSheetProvider = null)
 	: IMapRenderer
 {
 	private readonly HttpClient _httpClient = httpClient;
 	private readonly MapsOptions _options = options.Value;
 	private readonly ILogger<SkiaSharpMapRenderer> _logger = logger;
+	private readonly SpriteSheetProvider? _spriteSheetProvider = spriteSheetProvider;
 	private readonly MapboxTileReader _reader = new();
 
 	private static readonly string[] LabelLayers = ["places", "place", "poi", "pois"];
@@ -88,9 +93,17 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 			_logger.LogWarning("{Failed} of {Requested} tiles could not be fetched at zoom {Zoom}; those areas are drawn as no-data.", failed, requested, zoom);
 		}
 
+		// Only reach for the sprite sheet when a marker actually asks for an icon: most maps do not, and
+		// the atlas is a separate fetch (cached thereafter).
+		SpriteSheet? sprites = null;
+		if (_spriteSheetProvider is not null && request.Markers.Any(marker => !string.IsNullOrWhiteSpace(marker.Icon)))
+		{
+			sprites = await _spriteSheetProvider.GetAsync(styleUrl, _options.SpriteUrl, cancellationToken).ConfigureAwait(false);
+		}
+
 		DrawRegions(canvas, request, world, left, top, scale);
 		DrawPlaceLabels(canvas, labels, scale);
-		DrawOverlays(canvas, request, world, left, top, scale, _logger);
+		DrawOverlays(canvas, request, world, left, top, scale, _logger, sprites);
 		DrawAttribution(canvas, width, height, scale);
 
 		using var image = surface.Snapshot();
@@ -390,7 +403,7 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 	private static SKPoint Project(Coordinate c, double world, double left, double top)
 		=> new((float)(WebMercator.LongitudeToX(c.X, world) - left), (float)(WebMercator.LatitudeToY(c.Y, world) - top));
 
-	private static void DrawOverlays(SKCanvas canvas, MapRequest request, double world, double left, double top, int scale, ILogger logger)
+	private static void DrawOverlays(SKCanvas canvas, MapRequest request, double world, double left, double top, int scale, ILogger logger, SpriteSheet? sprites)
 	{
 		foreach (var poly in request.Polygons)
 		{
@@ -413,16 +426,24 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 		var fallbackMarker = new SKColor(0xDC, 0x26, 0x26);
 		foreach (var m in request.Markers)
 		{
-			if (!string.IsNullOrWhiteSpace(m.Icon))
-			{
-				// Accepted for Google compatibility but not yet drawn. Say so rather than silently
-				// returning a default pin, which reads as the icon having been honoured.
-				logger.LogWarning("Marker icon '{Icon}' was requested but custom marker icons are not implemented; drawing the default pin.", m.Icon);
-			}
-
 			var pt = Project(new Coordinate(m.Location.Longitude, m.Location.Latitude), world, left, top);
 			var metrics = MarkerMetrics.For(m.Scale, scale);
 			var markerColor = MapColors.Parse(m.Color, fallbackMarker);
+
+			if (!string.IsNullOrWhiteSpace(m.Icon))
+			{
+				if (sprites is not null && sprites.TryGet(m.Icon, out var icon))
+				{
+					DrawSpriteMarker(canvas, sprites, icon, pt, metrics, m.Label);
+					continue;
+				}
+
+				// Fall back to a pin, but never silently: an icon that was asked for and not drawn is the
+				// caller's business (issue #12).
+				logger.LogWarning(
+					"Marker icon '{Icon}' is not in the map style's sprite sheet; drawing the default pin instead.",
+					m.Icon);
+			}
 
 			using var pin = BuildPinPath(pt.X, pt.Y, metrics);
 			using var body = new SKPaint { Color = markerColor, IsAntialias = true, Style = SKPaintStyle.Fill };
@@ -441,6 +462,40 @@ public sealed class SkiaSharpMapRenderer(HttpClient httpClient, IOptions<MapsOpt
 
 			DrawMarkerLabel(canvas, m.Label, markerColor, pt.X, metrics.HeadCenterY(pt.Y), metrics);
 		}
+	}
+
+	/// <summary>
+	/// Draws a named sprite icon in place of the pin, centred on the coordinate. These sprites are point
+	/// glyphs rather than pins, so the coordinate is their centre - the same placement a MapLibre client
+	/// gives them. A label, if supplied, goes underneath with a halo so it does not obscure the glyph.
+	/// </summary>
+	private static void DrawSpriteMarker(SKCanvas canvas, SpriteSheet sprites, SpriteIcon icon, SKPoint anchor, MarkerMetrics metrics, string? label)
+	{
+		var width = icon.LogicalWidth * metrics.ScaleFactor;
+		var height = icon.LogicalHeight * metrics.ScaleFactor;
+		var destination = new SKRect(anchor.X - (width / 2f), anchor.Y - (height / 2f), anchor.X + (width / 2f), anchor.Y + (height / 2f));
+
+		using var paint = new SKPaint { IsAntialias = true };
+		canvas.DrawBitmap(sprites.Atlas, icon.Source, destination, paint);
+
+		if (string.IsNullOrWhiteSpace(label))
+		{
+			return;
+		}
+
+		using var font = new SKFont { Size = Math.Max(9f, height * 0.5f), Embolden = true };
+		using var halo = new SKPaint
+		{
+			Color = new SKColor(0xFF, 0xFF, 0xFF, 0xE0),
+			IsAntialias = true,
+			Style = SKPaintStyle.Stroke,
+			StrokeWidth = Math.Max(1.5f, height * 0.12f),
+			StrokeJoin = SKStrokeJoin.Round
+		};
+		using var text = new SKPaint { Color = new SKColor(0x33, 0x33, 0x33), IsAntialias = true };
+		var baseline = destination.Bottom + font.Size;
+		canvas.DrawText(label.Trim(), anchor.X, baseline, SKTextAlign.Center, font, halo);
+		canvas.DrawText(label.Trim(), anchor.X, baseline, SKTextAlign.Center, font, text);
 	}
 
 	/// <summary>

@@ -167,6 +167,28 @@ public class StaticMapRequestParserTests
 	}
 
 	[Fact]
+	public void Parse_NamedMarkerIcon_IsAccepted()
+	{
+		StaticMapRequestParser.TryParse(Q(("markers", "icon:cafe|51.5,-0.12")), Options, out var r, out _).Should().BeTrue();
+		r.Markers.Should().ContainSingle();
+		r.Markers[0].Icon.Should().Be("cafe");
+	}
+
+	[Theory]
+	[InlineData("https://example.com/pin.png")]
+	[InlineData("http://example.com/pin.png")]
+	[InlineData("//example.com/pin.png")]
+	public void Parse_RemoteMarkerIconUrl_IsRejectedWithAnActionableError(string icon)
+	{
+		// Issue #12: fetching caller-supplied URLs from a public service is an SSRF decision, not a
+		// feature to slip in. Rejecting says so; silently drawing a pin instead did not.
+		StaticMapRequestParser.TryParse(Q(("markers", $"icon:{icon}|51.5,-0.12")), Options, out _, out var error).Should().BeFalse();
+		error.Should().NotBeNull();
+		error.Should().Contain("icon");
+		error.Should().Contain("sprite", "the error should point at the supported alternative");
+	}
+
+	[Fact]
 	public void Parse_MultipleMarkerParams_ProduceSeparateGroups()
 	{
 		StaticMapRequestParser.TryParse(Q(("markers", "color:red|51,0"), ("markers", "color:green|52,1")), Options, out var r, out _).Should().BeTrue();

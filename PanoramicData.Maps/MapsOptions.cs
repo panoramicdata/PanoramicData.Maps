@@ -24,6 +24,13 @@ public sealed class MapsOptions
 	public string TilesStyleUrl { get; set; } = "https://tiles.panoramicdata.com/style.json";
 
 	/// <summary>
+	/// Optional explicit sprite base URL (without the <c>.json</c>/<c>.png</c> suffix) for named marker
+	/// icons. When unset, it is read from the <c>sprite</c> field of the style JSON, so no configuration
+	/// is normally needed. See issue #12.
+	/// </summary>
+	public string? SpriteUrl { get; set; }
+
+	/// <summary>
 	/// When <see langword="true"/>, requests must present a valid API key (see <see cref="ApiKeys"/>).
 	/// Defaults to <see langword="false"/> so the open-source image is usable out of the box; the
 	/// canonical hosted service sets this to <see langword="true"/> to meter and monetise access.

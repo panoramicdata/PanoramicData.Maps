@@ -52,12 +52,24 @@ app.MapGet("/", () => Results.Ok(new
 		"GET /v1/geocode?q=London&lang=en",
 		"GET /v1/reverse?lon=-0.1278&lat=51.5074&lang=en",
 		"GET /v1/limits  (max width/height/scale)",
+		"GET /v1/icons   (named marker icons available to markers=icon:<name>)",
 		"GET /staticmap?center=51.5074,-0.1278&zoom=12&size=800x600&markers=color:red|label:A|51.5074,-0.1278  (Google-compatible)",
 		"GET /staticmap?...&maptype=terrain&region=code:GB|fill:red|opacity:0.5",
+		"GET /staticmap?...&markers=icon:cafe|51.5074,-0.1278  (named sprite icon instead of a pin)",
 		"GET /v1/staticmap?...  (same as /staticmap)",
 		"POST /v1/staticmap  (application/json MapRequest body)"
 	}
 }));
+
+// Named marker icons are drawn from the style's sprite sheet; the names are not guessable, so they
+// are listed (issue #12).
+app.MapGet("/v1/icons", async (SpriteSheetProvider sprites, CancellationToken ct) =>
+{
+	var sheet = await sprites.GetAsync(options.TilesStyleUrl, options.SpriteUrl, ct);
+	return sheet is null
+		? Results.Ok(new { icons = Array.Empty<string>(), note = "The map style declares no sprite sheet, or it could not be fetched." })
+		: Results.Ok(new { icons = sheet.Names });
+});
 
 app.MapGet("/v1/limits", () => Results.Ok(new
 {
