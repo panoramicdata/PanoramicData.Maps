@@ -58,9 +58,18 @@ public class EarthLayerRenderingTests
 			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json" }),
 			logger ?? new CapturingLogger());
 
-	private static bool ContainsColor(SKBitmap bitmap, SKColor color, int tolerance = 4)
+	/// <summary>
+	/// Height of the attribution strip along the bottom of every rendered map. Absence assertions skip
+	/// it: the strip is white-on-grey text, and its antialiasing produces mid-greys that sit within a
+	/// few units of the land colour. That made this suite pass on Windows and fail on Linux, where the
+	/// font rasterises differently - the map area is what these tests are actually about.
+	/// </summary>
+	private const int AttributionHeight = 20;
+
+	private static bool ContainsColor(SKBitmap bitmap, SKColor color, int tolerance = 4, bool includeAttribution = true)
 	{
-		for (var y = 0; y < bitmap.Height; y++)
+		var height = includeAttribution ? bitmap.Height : Math.Max(1, bitmap.Height - AttributionHeight);
+		for (var y = 0; y < height; y++)
 		{
 			for (var x = 0; x < bitmap.Width; x++)
 			{
@@ -102,8 +111,8 @@ public class EarthLayerRenderingTests
 
 		using var bmp = SKBitmap.Decode(image.Bytes);
 		bmp.GetPixel(2, 2).Should().Be(NoData, "an area with no tile is drawn as no-data, not as land");
-		ContainsColor(bmp, OldLandBackground).Should().BeFalse("the land colour must come from data, never from the background");
-		ContainsColor(bmp, Earth).Should().BeFalse("no earth polygon was available to draw");
+		ContainsColor(bmp, OldLandBackground, includeAttribution: false).Should().BeFalse("the land colour must come from data, never from the background");
+		ContainsColor(bmp, Earth, includeAttribution: false).Should().BeFalse("no earth polygon was available to draw");
 	}
 
 	[Fact]
