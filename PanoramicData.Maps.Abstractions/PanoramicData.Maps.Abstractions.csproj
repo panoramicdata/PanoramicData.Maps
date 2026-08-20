@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<NeutralResourcesLanguage>en</NeutralResourcesLanguage>
+
+		<!-- NuGet package metadata -->
+		<PackageId>PanoramicData.Maps.Abstractions</PackageId>
+		<Owners>Panoramic Data Limited</Owners>
+		<PackageProjectUrl>https://github.com/panoramicdata/PanoramicData.Maps</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/panoramicdata/PanoramicData.Maps</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageIcon>Logo.png</PackageIcon>
+		<Description>Request models and Google-Static-Maps-compatible URL building for PanoramicData.Maps. Dependency-free, so callers and UI components can build map URLs without taking a dependency on the renderer.</Description>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageTags>maps;staticmap;geocoding;url;PanoramicData</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\PanoramicData.Maps\Logo.png" Link="Logo.png" Pack="true" PackagePath="" />
+		<None Include="..\README.md" Link="README.md" Pack="true" PackagePath="" />
+	</ItemGroup>
+
+</Project>

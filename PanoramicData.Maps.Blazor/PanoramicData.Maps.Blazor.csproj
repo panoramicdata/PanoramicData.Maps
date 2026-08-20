@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<NeutralResourcesLanguage>en</NeutralResourcesLanguage>
+
+		<!-- NuGet package metadata -->
+		<PackageId>PanoramicData.Maps.Blazor</PackageId>
+		<Owners>Panoramic Data Limited</Owners>
+		<PackageProjectUrl>https://github.com/panoramicdata/PanoramicData.Maps</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/panoramicdata/PanoramicData.Maps</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageIcon>Logo.png</PackageIcon>
+		<Description>Blazor components for PanoramicData.Maps. Renders static maps as plain images - no JavaScript, and no way to put an API key in the markup.</Description>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageTags>maps;staticmap;blazor;components;PanoramicData</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+		<PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\PanoramicData.Maps.Abstractions\PanoramicData.Maps.Abstractions.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\PanoramicData.Maps\Logo.png" Link="Logo.png" Pack="true" PackagePath="" />
+		<None Include="..\README.md" Link="README.md" Pack="true" PackagePath="" />
+	</ItemGroup>
+
+</Project>

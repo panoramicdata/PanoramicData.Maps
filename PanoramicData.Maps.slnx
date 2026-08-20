@@ -1,5 +1,7 @@
 <Solution>
+  <Project Path="PanoramicData.Maps.Abstractions/PanoramicData.Maps.Abstractions.csproj" />
   <Project Path="PanoramicData.Maps/PanoramicData.Maps.csproj" />
+  <Project Path="PanoramicData.Maps.Blazor/PanoramicData.Maps.Blazor.csproj" />
   <Project Path="PanoramicData.Maps.Server/PanoramicData.Maps.Server.csproj" />
   <Project Path="PanoramicData.Maps.Test/PanoramicData.Maps.Test.csproj" />
   <Folder Name="/Solution Items/">

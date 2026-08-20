@@ -29,8 +29,10 @@ jobs:
     - name: Test
       run: dotnet test --no-build --configuration Release
 
-    - name: Pack (core library)
-      run: dotnet pack PanoramicData.Maps/PanoramicData.Maps.csproj --no-build --configuration Release --output ./artifacts
+    - name: Pack (all publishable libraries)
+      # Packs every packable project in the solution - Abstractions, the core library and the Blazor
+      # components. Packing only the core library would silently publish one of three packages.
+      run: dotnet pack PanoramicData.Maps.slnx --no-build --configuration Release --output ./artifacts
 
     - name: Upload NuGet artifact
       uses: actions/upload-artifact@v7

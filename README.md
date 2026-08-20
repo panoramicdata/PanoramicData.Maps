@@ -27,7 +27,9 @@ screenshotting the result, so any MapLibre style and overlay works exactly as it
 
 | Project | Purpose | Artifact |
 |---------|---------|----------|
-| `PanoramicData.Maps` | Core models + abstractions (`IMapRenderer`, `IGeocoder`, `PhotonGeocoder`, options). | NuGet: `PanoramicData.Maps` |
+| `PanoramicData.Maps.Abstractions` | Request models and URL building (`MapRequest`, `MarkerSpec`, `StaticMapUrlBuilder`). No heavy dependencies. | NuGet: `PanoramicData.Maps.Abstractions` |
+| `PanoramicData.Maps` | Renderer, geocoder and options (`IMapRenderer`, `IGeocoder`, `PhotonGeocoder`, `SkiaSharpMapRenderer`). | NuGet: `PanoramicData.Maps` |
+| `PanoramicData.Maps.Blazor` | Blazor components - `<StaticMap>`. No JavaScript. | NuGet: `PanoramicData.Maps.Blazor` |
 | `PanoramicData.Maps.Server` | ASP.NET Core HTTP service. | Docker Hub: `panoramicdata/maps` |
 | `PanoramicData.Maps.Test` | xUnit v3 tests. | — |
 
@@ -91,6 +93,64 @@ public hostname and the renderer resolves an internal one).
   "paths":   [{ "points": [{ "longitude": -0.16, "latitude": 51.507 }, { "longitude": -0.07, "latitude": 51.508 }], "color": "#7c3aed" }],
   "polygons":[{ "points": [{ "longitude": -0.16, "latitude": 51.49 }, { "longitude": -0.16, "latitude": 51.52 }, { "longitude": -0.10, "latitude": 51.52 }, { "longitude": -0.10, "latitude": 51.49 }] }]
 }
+```
+
+## Building URLs from .NET
+
+`StaticMapUrlBuilder` writes the query the service parses, so callers do not assemble descriptor
+strings by hand. It lives in `PanoramicData.Maps.Abstractions`, which has no renderer dependencies -
+safe to reference from a UI project or a report macro.
+
+```csharp
+var url = StaticMapUrlBuilder.Build("https://maps.panoramicdata.com", new MapRequest
+{
+    Center  = new GeoPoint(-0.1278, 51.5074),   // longitude, latitude
+    Zoom    = 12,
+    Width   = 800,
+    Height  = 600,
+    Markers = [new MarkerSpec { Location = new GeoPoint(-0.1278, 51.5074), Color = "red", Label = "A" }]
+});
+```
+
+The builder and the service's parser are tested against each other by round-trip - build a URL, parse
+it back, compare - so the two halves of the grammar cannot drift apart.
+
+It never writes an API key. Authentication is the caller's business, and a key in a URL is visible to
+anything that can see the URL: send it as the `X-Api-Key` header, or put a proxy in front.
+
+## Blazor
+
+```razor
+@using PanoramicData.Maps
+@using PanoramicData.Maps.Blazor
+
+<StaticMap BaseUrl="/api/maps"
+           Location="Maidenhead, Berkshire"
+           Zoom="13"
+           Width="640" Height="360"
+           class="rounded" />
+```
+
+Renders a plain `<img>` - no JavaScript, so none of the interop-lifetime and disposal hazards that
+come with a scripted map. `Markers`, `Paths`, `Polygons` and `Regions` take the same models the URL
+builder does; unmatched attributes (`class`, `style`, `data-*`) are applied to the image; `loading`
+defaults to `lazy`; and `Alt` defaults to a description of the map rather than nothing. If there is
+nothing to draw yet, or `BaseUrl` is not set, it renders nothing rather than a broken image - and
+never throws, because an exception during render takes the Blazor circuit with it.
+
+**There is no `ApiKey` parameter, deliberately.** A key placed in an image URL is published to every
+browser that loads the page - including under Blazor Server, where it lands in the rendered HTML. Point
+`BaseUrl` at a same-origin endpoint that adds the key server-side:
+
+```csharp
+// In the host application. The key stays on the server; the browser only ever sees /api/maps.
+app.MapGet("/api/maps/staticmap", async (HttpRequest request, IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient();
+    client.DefaultRequestHeaders.Add("X-Api-Key", mapsApiKey);
+    var upstream = await client.GetAsync($"https://maps.panoramicdata.com/staticmap{request.QueryString}", ct);
+    return Results.Stream(await upstream.Content.ReadAsStreamAsync(ct), upstream.Content.Headers.ContentType?.ToString());
+});
 ```
 
 ## Configuration (`Maps` section / env vars)

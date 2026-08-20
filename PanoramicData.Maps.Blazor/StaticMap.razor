@@ -1,0 +1,11 @@
+@namespace PanoramicData.Maps.Blazor
+
+@if (Source is { } source)
+{
+	<img src="@source"
+		 alt="@AltText"
+		 width="@Width"
+		 height="@Height"
+		 loading="@(Lazy ? "lazy" : null)"
+		 @attributes="AdditionalAttributes" />
+}
