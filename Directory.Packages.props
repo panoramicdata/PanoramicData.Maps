@@ -21,7 +21,7 @@
     <!-- Blazor components -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.11" />
     <!-- Test -->
-    <PackageVersion Include="AwesomeAssertions" Version="9.4.0" />
+    <PackageVersion Include="AwesomeAssertions" Version="9.6.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
