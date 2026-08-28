@@ -10,7 +10,7 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
-    <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.85" />
+    <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.94" />
     <!-- Rendering (native MVT -> SkiaSharp; no headless browser) -->
     <PackageVersion Include="SkiaSharp" Version="3.119.4" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
