@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Solution>
   <Project Path="PanoramicData.Maps.Abstractions/PanoramicData.Maps.Abstractions.csproj" />
   <Project Path="PanoramicData.Maps/PanoramicData.Maps.csproj" />
@@ -16,5 +17,6 @@
     <File Path="README.md" />
     <File Path="SECURITY.md" />
     <File Path="version.json" />
+    <File Path=".codacy.yml" />
   </Folder>
 </Solution>
