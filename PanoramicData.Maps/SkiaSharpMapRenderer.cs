@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO.VectorTiles.Mapbox;
@@ -36,6 +36,13 @@ public sealed class SkiaSharpMapRenderer(
 	/// it reads as neither land nor sea - a missing tile should look like missing data, not like geography.
 	/// </summary>
 	private static readonly SKColor NoDataColor = new(0xCC, 0xCC, 0xCC);
+
+	/// <summary>
+	/// Sampling for sprite icons. They are drawn at a fractional scale factor, so nearest-neighbour
+	/// (SkiaSharp's default when no options are given) would alias the glyph edges; linear filtering
+	/// matches what a MapLibre client does with the same atlas.
+	/// </summary>
+	private static readonly SKSamplingOptions SpriteSampling = new(SKFilterMode.Linear, SKMipmapMode.None);
 
 	private sealed record LabelCandidate(string Text, float X, float Y, float Size, double Importance, bool Bold);
 
@@ -349,55 +356,66 @@ public sealed class SkiaSharpMapRenderer(
 			return null;
 		}
 
-		var path = new SKPath();
-		AddGeometry(path, geometry, world, left, top);
-		return path;
+		using var builder = new SKPathBuilder();
+		AddGeometry(builder, geometry, world, left, top);
+		return builder.Detach();
 	}
 
-	private static void AddGeometry(SKPath path, Geometry geometry, double world, double left, double top)
+	private static void AddGeometry(SKPathBuilder builder, Geometry geometry, double world, double left, double top)
 	{
 		switch (geometry)
 		{
 			case Point pt:
 				var sp = Project(pt.Coordinate, world, left, top);
-				path.AddCircle(sp.X, sp.Y, 2f);
+				builder.AddCircle(sp.X, sp.Y, 2f);
 				break;
 			case LineString ls:
-				AddLine(path, ls.Coordinates, world, left, top, close: false);
+				AddLine(builder, ls.Coordinates, world, left, top, close: false);
 				break;
 			case Polygon poly:
-				AddLine(path, poly.ExteriorRing.Coordinates, world, left, top, close: true);
+				AddLine(builder, poly.ExteriorRing.Coordinates, world, left, top, close: true);
 				foreach (var hole in poly.InteriorRings)
 				{
-					AddLine(path, hole.Coordinates, world, left, top, close: true);
+					AddLine(builder, hole.Coordinates, world, left, top, close: true);
 				}
 				break;
 			case GeometryCollection gc:
 				foreach (var g in gc.Geometries)
 				{
-					AddGeometry(path, g, world, left, top);
+					AddGeometry(builder, g, world, left, top);
 				}
 				break;
 		}
 	}
 
-	private static void AddLine(SKPath path, Coordinate[] coords, double world, double left, double top, bool close)
+	private static void AddLine(SKPathBuilder builder, Coordinate[] coords, double world, double left, double top, bool close)
 	{
 		if (coords.Length == 0)
 		{
 			return;
 		}
 
-		path.MoveTo(Project(coords[0], world, left, top));
+		builder.MoveTo(Project(coords[0], world, left, top));
 		for (var i = 1; i < coords.Length; i++)
 		{
-			path.LineTo(Project(coords[i], world, left, top));
+			builder.LineTo(Project(coords[i], world, left, top));
 		}
 
 		if (close)
 		{
-			path.Close();
+			builder.Close();
 		}
+	}
+
+	/// <summary>
+	/// Builds a standalone path for one ring or line. SkiaSharp 4 makes <see cref="SKPath"/> immutable,
+	/// so geometry is accumulated in a builder and detached once.
+	/// </summary>
+	private static SKPath BuildLinePath(Coordinate[] coords, double world, double left, double top, bool close)
+	{
+		using var builder = new SKPathBuilder();
+		AddLine(builder, coords, world, left, top, close);
+		return builder.Detach();
 	}
 
 	private static SKPoint Project(Coordinate c, double world, double left, double top)
@@ -407,8 +425,7 @@ public sealed class SkiaSharpMapRenderer(
 	{
 		foreach (var poly in request.Polygons)
 		{
-			using var path = new SKPath();
-			AddLine(path, poly.Points.Select(p => new Coordinate(p.Longitude, p.Latitude)).ToArray(), world, left, top, close: true);
+			using var path = BuildLinePath([.. poly.Points.Select(p => new Coordinate(p.Longitude, p.Latitude))], world, left, top, close: true);
 			using var fp = new SKPaint { Color = MapColors.Parse(poly.FillColor, new SKColor(0xF5, 0x9E, 0x0B)).WithAlpha((byte)(poly.FillOpacity * 255)), IsAntialias = true, Style = SKPaintStyle.Fill };
 			canvas.DrawPath(path, fp);
 			using var lp = new SKPaint { Color = MapColors.Parse(poly.StrokeColor, new SKColor(0xF5, 0x9E, 0x0B)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)poly.StrokeWidth * scale };
@@ -417,8 +434,7 @@ public sealed class SkiaSharpMapRenderer(
 
 		foreach (var line in request.Paths)
 		{
-			using var path = new SKPath();
-			AddLine(path, line.Points.Select(p => new Coordinate(p.Longitude, p.Latitude)).ToArray(), world, left, top, close: false);
+			using var path = BuildLinePath([.. line.Points.Select(p => new Coordinate(p.Longitude, p.Latitude))], world, left, top, close: false);
 			using var p = new SKPaint { Color = MapColors.Parse(line.Color, new SKColor(0x00, 0x00, 0xFF)).WithAlpha((byte)(line.Opacity * 255)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)line.Width * scale, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
 			canvas.DrawPath(path, p);
 		}
@@ -476,7 +492,7 @@ public sealed class SkiaSharpMapRenderer(
 		var destination = new SKRect(anchor.X - (width / 2f), anchor.Y - (height / 2f), anchor.X + (width / 2f), anchor.Y + (height / 2f));
 
 		using var paint = new SKPaint { IsAntialias = true };
-		canvas.DrawBitmap(sprites.Atlas, icon.Source, destination, paint);
+		canvas.DrawBitmap(sprites.Atlas, icon.Source, destination, SpriteSampling, paint);
 
 		if (string.IsNullOrWhiteSpace(label))
 		{
@@ -509,14 +525,16 @@ public sealed class SkiaSharpMapRenderer(
 		var radius = metrics.HeadRadius;
 		var headCenterY = metrics.HeadCenterY(anchorY);
 
-		using var head = new SKPath();
-		head.AddCircle(anchorX, headCenterY, radius);
+		using var headBuilder = new SKPathBuilder();
+		headBuilder.AddCircle(anchorX, headCenterY, radius);
+		using var head = headBuilder.Detach();
 
-		using var tail = new SKPath();
-		tail.MoveTo(anchorX - (radius * 0.80f), headCenterY + (radius * 0.60f));
-		tail.LineTo(anchorX, metrics.TipY(anchorY));
-		tail.LineTo(anchorX + (radius * 0.80f), headCenterY + (radius * 0.60f));
-		tail.Close();
+		using var tailBuilder = new SKPathBuilder();
+		tailBuilder.MoveTo(anchorX - (radius * 0.80f), headCenterY + (radius * 0.60f));
+		tailBuilder.LineTo(anchorX, metrics.TipY(anchorY));
+		tailBuilder.LineTo(anchorX + (radius * 0.80f), headCenterY + (radius * 0.60f));
+		tailBuilder.Close();
+		using var tail = tailBuilder.Detach();
 
 		if (head.Op(tail, SKPathOp.Union) is { } union)
 		{
@@ -525,10 +543,10 @@ public sealed class SkiaSharpMapRenderer(
 
 		// Path arithmetic is optional in Skia builds; falling back to both subpaths still draws a pin,
 		// with a faint chord where they meet.
-		var combined = new SKPath();
+		using var combined = new SKPathBuilder();
 		combined.AddPath(head);
 		combined.AddPath(tail);
-		return combined;
+		return combined.Detach();
 	}
 
 	/// <summary>
