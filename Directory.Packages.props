@@ -13,7 +13,7 @@
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.94" />
     <!-- Rendering (native MVT -> SkiaSharp; no headless browser) -->
     <PackageVersion Include="SkiaSharp" Version="4.151.1" />
-    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.151.1" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.151.2" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
     <PackageVersion Include="NetTopologySuite.IO.VectorTiles" Version="1.1.0" />
     <PackageVersion Include="NetTopologySuite.IO.VectorTiles.Mapbox" Version="1.1.0" />
