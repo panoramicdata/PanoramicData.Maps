@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 
 namespace PanoramicData.Maps;
@@ -38,6 +38,23 @@ public static class StaticMapUrlBuilder
 			throw new ArgumentException("A base URL is required, for example https://maps.panoramicdata.com.", nameof(baseUrl));
 		}
 
+		EnsureSomethingToDraw(request);
+
+		var builder = new StringBuilder(baseUrl.TrimEnd('/')).Append("/staticmap?");
+		var first = true;
+
+		AppendView(builder, ref first, request);
+		AppendOverlays(builder, ref first, request);
+
+		return builder.ToString();
+	}
+
+	/// <summary>
+	/// Rejects a request that would render an empty map. The service rejects it too, so catching it
+	/// here puts the error next to the mistake rather than in a 400 from a later HTTP call.
+	/// </summary>
+	private static void EnsureSomethingToDraw(MapRequest request)
+	{
 		if (request.Center is null
 			&& string.IsNullOrWhiteSpace(request.Location)
 			&& request.Markers.Count == 0
@@ -49,10 +66,11 @@ public static class StaticMapUrlBuilder
 				"A request must set 'center' or 'location', or supply at least one marker, path, polygon or region.",
 				nameof(request));
 		}
+	}
 
-		var builder = new StringBuilder(baseUrl.TrimEnd('/')).Append("/staticmap?");
-		var first = true;
-
+	/// <summary>Writes the parameters describing the view itself: where, how far in, how big, what format.</summary>
+	private static void AppendView(StringBuilder builder, ref bool first, MapRequest request)
+	{
 		if (request.Center is { } center)
 		{
 			Append(builder, ref first, "center", LatLng(center));
@@ -83,7 +101,11 @@ public static class StaticMapUrlBuilder
 		{
 			Append(builder, ref first, "style", request.StyleUrl!);
 		}
+	}
 
+	/// <summary>Writes the repeatable overlay parameters. Polygons share the 'path' key, as the grammar requires.</summary>
+	private static void AppendOverlays(StringBuilder builder, ref bool first, MapRequest request)
+	{
 		foreach (var marker in request.Markers)
 		{
 			Append(builder, ref first, "markers", MarkerGroup(marker));
@@ -103,8 +125,6 @@ public static class StaticMapUrlBuilder
 		{
 			Append(builder, ref first, "region", RegionGroup(region));
 		}
-
-		return builder.ToString();
 	}
 
 	private static string MarkerGroup(MarkerSpec marker)

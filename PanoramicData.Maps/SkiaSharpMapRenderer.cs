@@ -46,6 +46,28 @@ public sealed class SkiaSharpMapRenderer(
 
 	private sealed record LabelCandidate(string Text, float X, float Y, float Size, double Importance, bool Bold);
 
+	/// <summary>
+	/// The projection and pixel extent of the image being drawn - everything needed to turn a geographic
+	/// coordinate into a device pixel. These six values travel together through every drawing routine;
+	/// passing them separately gave those routines argument lists long enough to hide a transposition.
+	/// </summary>
+	/// <param name="World">The width of the whole world in pixels at this zoom.</param>
+	/// <param name="Left">World-pixel X of the image's left edge.</param>
+	/// <param name="Top">World-pixel Y of the image's top edge.</param>
+	/// <param name="Scale">Device scale factor (1 or 2), which every stroke width and font size multiplies by.</param>
+	/// <param name="Width">Image width in device pixels.</param>
+	/// <param name="Height">Image height in device pixels.</param>
+	private sealed record Viewport(double World, double Left, double Top, int Scale, int Width, int Height);
+
+	/// <summary>Identifies one vector tile in the slippy-map scheme.</summary>
+	private sealed record TileAddress(int X, int Y, int Zoom);
+
+	/// <summary>
+	/// How one source layer is painted. A null colour means that pass is skipped, so a layer can be
+	/// fill-only (water), stroke-only (boundaries) or stroked over a wider casing (roads).
+	/// </summary>
+	private sealed record LayerPaint(SKColor? Fill = null, SKColor? Stroke = null, float StrokeWidth = 1f, SKColor? Casing = null);
+
 	/// <inheritdoc />
 	public async Task<MapImage> RenderAsync(MapRequest request, CancellationToken cancellationToken = default)
 	{
@@ -77,6 +99,7 @@ public sealed class SkiaSharpMapRenderer(
 		var tyMin = Math.Clamp((int)Math.Floor(top / WebMercator.TileSize), 0, maxTile);
 		var tyMax = Math.Clamp((int)Math.Floor((top + height) / WebMercator.TileSize), 0, maxTile);
 
+		var viewport = new Viewport(world, left, top, scale, width, height);
 		var labels = new List<LabelCandidate>();
 		var requested = 0;
 		var failed = 0;
@@ -86,7 +109,7 @@ public sealed class SkiaSharpMapRenderer(
 			{
 				var wrappedX = ((tx % (maxTile + 1)) + (maxTile + 1)) % (maxTile + 1); // wrap antimeridian
 				requested++;
-				if (!await DrawTileAsync(canvas, styleUrl, wrappedX, ty, zoom, world, left, top, scale, width, height, labels, cancellationToken).ConfigureAwait(false))
+				if (!await DrawTileAsync(canvas, styleUrl, new TileAddress(wrappedX, ty, zoom), viewport, labels, cancellationToken).ConfigureAwait(false))
 				{
 					failed++;
 				}
@@ -108,9 +131,9 @@ public sealed class SkiaSharpMapRenderer(
 			sprites = await _spriteSheetProvider.GetAsync(styleUrl, _options.SpriteUrl, cancellationToken).ConfigureAwait(false);
 		}
 
-		DrawRegions(canvas, request, world, left, top, scale);
+		DrawRegions(canvas, request, viewport);
 		DrawPlaceLabels(canvas, labels, scale);
-		DrawOverlays(canvas, request, world, left, top, scale, _logger, sprites);
+		DrawOverlays(canvas, request, viewport, _logger, sprites);
 		DrawAttribution(canvas, width, height, scale);
 
 		using var image = surface.Snapshot();
@@ -120,9 +143,9 @@ public sealed class SkiaSharpMapRenderer(
 	}
 
 	/// <summary>Fetches and draws one tile. Returns false when the tile could not be fetched or was empty.</summary>
-	private async Task<bool> DrawTileAsync(SKCanvas canvas, string styleUrl, int tx, int ty, int zoom, double world, double left, double top, int scale, int width, int height, List<LabelCandidate> labels, CancellationToken ct)
+	private async Task<bool> DrawTileAsync(SKCanvas canvas, string styleUrl, TileAddress tile, Viewport viewport, List<LabelCandidate> labels, CancellationToken ct)
 	{
-		var url = TileUrl(styleUrl, zoom, tx, ty);
+		var url = TileUrl(styleUrl, tile.Zoom, tile.X, tile.Y);
 		byte[] bytes;
 		try
 		{
@@ -147,21 +170,22 @@ public sealed class SkiaSharpMapRenderer(
 		}
 
 		using var ms = new MemoryStream(Gunzip(bytes));
-		var vectorTile = _reader.Read(ms, new NetTopologySuite.IO.VectorTiles.Tiles.Tile(tx, ty, zoom));
+		var vectorTile = _reader.Read(ms, new NetTopologySuite.IO.VectorTiles.Tiles.Tile(tile.X, tile.Y, tile.Zoom));
 
-		DrawLayer(canvas, vectorTile, ["earth"], world, left, top, fill: EarthColor);
-		DrawLayer(canvas, vectorTile, ["water"], world, left, top, fill: new SKColor(0xA0, 0xC8, 0xF0));
-		DrawStyledFills(canvas, vectorTile, "landcover", world, left, top, zoom);
-		DrawStyledFills(canvas, vectorTile, "landuse", world, left, top, zoom);
-		DrawLayer(canvas, vectorTile, ["buildings"], world, left, top, fill: new SKColor(0xE4, 0xDF, 0xD9), stroke: new SKColor(0xD0, 0xC9, 0xC0), strokeWidth: 0.5f * scale);
-		DrawLayer(canvas, vectorTile, ["roads", "transit"], world, left, top, stroke: new SKColor(0xFF, 0xFF, 0xFF), strokeWidth: 1.5f * scale, casing: new SKColor(0xCF, 0xC9, 0xC2));
-		DrawLayer(canvas, vectorTile, ["boundaries"], world, left, top, stroke: new SKColor(0x9E, 0x9C, 0xB0), strokeWidth: 1f * scale);
+		var scale = viewport.Scale;
+		DrawLayer(canvas, vectorTile, ["earth"], viewport, new LayerPaint(Fill: EarthColor));
+		DrawLayer(canvas, vectorTile, ["water"], viewport, new LayerPaint(Fill: new SKColor(0xA0, 0xC8, 0xF0)));
+		DrawStyledFills(canvas, vectorTile, "landcover", viewport, tile.Zoom);
+		DrawStyledFills(canvas, vectorTile, "landuse", viewport, tile.Zoom);
+		DrawLayer(canvas, vectorTile, ["buildings"], viewport, new LayerPaint(Fill: new SKColor(0xE4, 0xDF, 0xD9), Stroke: new SKColor(0xD0, 0xC9, 0xC0), StrokeWidth: 0.5f * scale));
+		DrawLayer(canvas, vectorTile, ["roads", "transit"], viewport, new LayerPaint(Stroke: new SKColor(0xFF, 0xFF, 0xFF), StrokeWidth: 1.5f * scale, Casing: new SKColor(0xCF, 0xC9, 0xC2)));
+		DrawLayer(canvas, vectorTile, ["boundaries"], viewport, new LayerPaint(Stroke: new SKColor(0x9E, 0x9C, 0xB0), StrokeWidth: 1f * scale));
 
-		CollectLabels(vectorTile, world, left, top, scale, width, height, labels);
+		CollectLabels(vectorTile, viewport, labels);
 		return true;
 	}
 
-	private static void CollectLabels(NetTopologySuite.IO.VectorTiles.VectorTile tile, double world, double left, double top, int scale, int width, int height, List<LabelCandidate> labels)
+	private static void CollectLabels(NetTopologySuite.IO.VectorTiles.VectorTile tile, Viewport viewport, List<LabelCandidate> labels)
 	{
 		foreach (var layer in tile.Layers)
 		{
@@ -172,30 +196,46 @@ public sealed class SkiaSharpMapRenderer(
 
 			foreach (var feature in layer.Features)
 			{
-				if (feature.Geometry is not Point pt || feature.Attributes is null)
+				if (TryReadLabel(feature, viewport) is { } candidate)
 				{
-					continue;
+					labels.Add(candidate);
 				}
-
-				var name = (feature.Attributes.GetOptionalValue("name:en") ?? feature.Attributes.GetOptionalValue("name")) as string;
-				if (string.IsNullOrWhiteSpace(name))
-				{
-					continue;
-				}
-
-				var sp = Project(pt.Coordinate, world, left, top);
-				if (sp.X < 0 || sp.Y < 0 || sp.X > width || sp.Y > height)
-				{
-					continue;
-				}
-
-				var kind = (feature.Attributes.GetOptionalValue("kind") ?? feature.Attributes.GetOptionalValue("class")) as string;
-				var population = ToDouble(feature.Attributes.GetOptionalValue("population"));
-				var (size, bold, kindBonus) = StyleForKind(kind, scale);
-				var importance = kindBonus + population;
-				labels.Add(new LabelCandidate(name!, sp.X, sp.Y, size, importance, bold));
 			}
 		}
+	}
+
+	/// <summary>Whether a projected point falls outside the image, and so has no label to place.</summary>
+	private static bool IsOutsideImage(SKPoint point, Viewport viewport)
+		=> point.X < 0 || point.Y < 0 || point.X > viewport.Width || point.Y > viewport.Height;
+
+	/// <summary>
+	/// Turns one label-layer feature into a placement candidate, or <see langword="null"/> when it is not
+	/// a named point inside the image. Importance combines the kind's rank with population, so a capital
+	/// beats a village when the two collide.
+	/// </summary>
+	private static LabelCandidate? TryReadLabel(NetTopologySuite.Features.IFeature feature, Viewport viewport)
+	{
+		if (feature.Geometry is not Point pt || feature.Attributes is null)
+		{
+			return null;
+		}
+
+		var name = (feature.Attributes.GetOptionalValue("name:en") ?? feature.Attributes.GetOptionalValue("name")) as string;
+		if (string.IsNullOrWhiteSpace(name))
+		{
+			return null;
+		}
+
+		var sp = Project(pt.Coordinate, viewport);
+		if (IsOutsideImage(sp, viewport))
+		{
+			return null;
+		}
+
+		var kind = (feature.Attributes.GetOptionalValue("kind") ?? feature.Attributes.GetOptionalValue("class")) as string;
+		var population = ToDouble(feature.Attributes.GetOptionalValue("population"));
+		var (size, bold, kindBonus) = StyleForKind(kind, viewport.Scale);
+		return new LabelCandidate(name, sp.X, sp.Y, size, kindBonus + population, bold);
 	}
 
 	private static (float Size, bool Bold, double KindBonus) StyleForKind(string? kind, int scale)
@@ -239,7 +279,7 @@ public sealed class SkiaSharpMapRenderer(
 		}
 	}
 
-	private void DrawRegions(SKCanvas canvas, MapRequest request, double world, double left, double top, int scale)
+	private void DrawRegions(SKCanvas canvas, MapRequest request, Viewport viewport)
 	{
 		foreach (var region in request.Regions)
 		{
@@ -249,7 +289,7 @@ public sealed class SkiaSharpMapRenderer(
 				continue; // the parser already rejects unknown/boundary-less codes with a 400
 			}
 
-			using var path = ToPath(geometry, world, left, top);
+			using var path = ToPath(geometry, viewport);
 			if (path is null)
 			{
 				continue;
@@ -261,7 +301,7 @@ public sealed class SkiaSharpMapRenderer(
 
 			if (!string.IsNullOrWhiteSpace(region.StrokeColor))
 			{
-				using var sp = new SKPaint { Color = MapColors.Parse(region.StrokeColor, new SKColor(0xB0, 0x1F, 0x1F)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)region.StrokeWidth * scale, StrokeJoin = SKStrokeJoin.Round };
+				using var sp = new SKPaint { Color = MapColors.Parse(region.StrokeColor, new SKColor(0xB0, 0x1F, 0x1F)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)region.StrokeWidth * viewport.Scale, StrokeJoin = SKStrokeJoin.Round };
 				canvas.DrawPath(path, sp);
 			}
 		}
@@ -274,7 +314,7 @@ public sealed class SkiaSharpMapRenderer(
 	/// areas out of the ocean at low zoom (issue #10) and towns from rendering as parkland.
 	/// </summary>
 	private static void DrawStyledFills(SKCanvas canvas, NetTopologySuite.IO.VectorTiles.VectorTile tile,
-		string layerName, double world, double left, double top, double zoom)
+		string layerName, Viewport viewport, double zoom)
 	{
 		foreach (var layer in tile.Layers)
 		{
@@ -291,7 +331,7 @@ public sealed class SkiaSharpMapRenderer(
 					continue;
 				}
 
-				var path = ToPath(feature.Geometry, world, left, top);
+				var path = ToPath(feature.Geometry, viewport);
 				if (path is null)
 				{
 					continue;
@@ -308,7 +348,7 @@ public sealed class SkiaSharpMapRenderer(
 	}
 
 	private void DrawLayer(SKCanvas canvas, NetTopologySuite.IO.VectorTiles.VectorTile tile, string[] layerNames,
-		double world, double left, double top, SKColor? fill = null, SKColor? stroke = null, float strokeWidth = 1f, SKColor? casing = null)
+		Viewport viewport, LayerPaint paint)
 	{
 		foreach (var layer in tile.Layers)
 		{
@@ -319,7 +359,7 @@ public sealed class SkiaSharpMapRenderer(
 
 			foreach (var feature in layer.Features)
 			{
-				var path = ToPath(feature.Geometry, world, left, top);
+				var path = ToPath(feature.Geometry, viewport);
 				if (path is null)
 				{
 					continue;
@@ -327,21 +367,21 @@ public sealed class SkiaSharpMapRenderer(
 
 				using (path)
 				{
-					if (fill is { } f)
+					if (paint.Fill is { } f)
 					{
 						using var p = new SKPaint { Color = f, IsAntialias = true, Style = SKPaintStyle.Fill };
 						canvas.DrawPath(path, p);
 					}
 
-					if (casing is { } c)
+					if (paint.Casing is { } c)
 					{
-						using var p = new SKPaint { Color = c, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = strokeWidth + 2f, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
+						using var p = new SKPaint { Color = c, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = paint.StrokeWidth + 2f, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
 						canvas.DrawPath(path, p);
 					}
 
-					if (stroke is { } s)
+					if (paint.Stroke is { } s)
 					{
-						using var p = new SKPaint { Color = s, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = strokeWidth, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
+						using var p = new SKPaint { Color = s, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = paint.StrokeWidth, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
 						canvas.DrawPath(path, p);
 					}
 				}
@@ -349,7 +389,7 @@ public sealed class SkiaSharpMapRenderer(
 		}
 	}
 
-	private static SKPath? ToPath(Geometry? geometry, double world, double left, double top)
+	private static SKPath? ToPath(Geometry? geometry, Viewport viewport)
 	{
 		if (geometry is null || geometry.IsEmpty)
 		{
@@ -357,32 +397,32 @@ public sealed class SkiaSharpMapRenderer(
 		}
 
 		using var builder = new SKPathBuilder();
-		AddGeometry(builder, geometry, world, left, top);
+		AddGeometry(builder, geometry, viewport);
 		return builder.Detach();
 	}
 
-	private static void AddGeometry(SKPathBuilder builder, Geometry geometry, double world, double left, double top)
+	private static void AddGeometry(SKPathBuilder builder, Geometry geometry, Viewport viewport)
 	{
 		switch (geometry)
 		{
 			case Point pt:
-				var sp = Project(pt.Coordinate, world, left, top);
+				var sp = Project(pt.Coordinate, viewport);
 				builder.AddCircle(sp.X, sp.Y, 2f);
 				break;
 			case LineString ls:
-				AddLine(builder, ls.Coordinates, world, left, top, close: false);
+				AddLine(builder, ls.Coordinates, viewport, close: false);
 				break;
 			case Polygon poly:
-				AddLine(builder, poly.ExteriorRing.Coordinates, world, left, top, close: true);
+				AddLine(builder, poly.ExteriorRing.Coordinates, viewport, close: true);
 				foreach (var hole in poly.InteriorRings)
 				{
-					AddLine(builder, hole.Coordinates, world, left, top, close: true);
+					AddLine(builder, hole.Coordinates, viewport, close: true);
 				}
 				break;
 			case GeometryCollection gc:
 				foreach (var g in gc.Geometries)
 				{
-					AddGeometry(builder, g, world, left, top);
+					AddGeometry(builder, g, viewport);
 				}
 				break;
 			default:
@@ -393,17 +433,17 @@ public sealed class SkiaSharpMapRenderer(
 		}
 	}
 
-	private static void AddLine(SKPathBuilder builder, Coordinate[] coords, double world, double left, double top, bool close)
+	private static void AddLine(SKPathBuilder builder, Coordinate[] coords, Viewport viewport, bool close)
 	{
 		if (coords.Length == 0)
 		{
 			return;
 		}
 
-		builder.MoveTo(Project(coords[0], world, left, top));
+		builder.MoveTo(Project(coords[0], viewport));
 		for (var i = 1; i < coords.Length; i++)
 		{
-			builder.LineTo(Project(coords[i], world, left, top));
+			builder.LineTo(Project(coords[i], viewport));
 		}
 
 		if (close)
@@ -416,21 +456,25 @@ public sealed class SkiaSharpMapRenderer(
 	/// Builds a standalone path for one ring or line. SkiaSharp 4 makes <see cref="SKPath"/> immutable,
 	/// so geometry is accumulated in a builder and detached once.
 	/// </summary>
-	private static SKPath BuildLinePath(Coordinate[] coords, double world, double left, double top, bool close)
+	private static SKPath BuildLinePath(Coordinate[] coords, Viewport viewport, bool close)
 	{
 		using var builder = new SKPathBuilder();
-		AddLine(builder, coords, world, left, top, close);
+		AddLine(builder, coords, viewport, close);
 		return builder.Detach();
 	}
 
-	private static SKPoint Project(Coordinate c, double world, double left, double top)
-		=> new((float)(WebMercator.LongitudeToX(c.X, world) - left), (float)(WebMercator.LatitudeToY(c.Y, world) - top));
+	private static SKPoint Project(Coordinate c, Viewport viewport)
+		=> new(
+			(float)(WebMercator.LongitudeToX(c.X, viewport.World) - viewport.Left),
+			(float)(WebMercator.LatitudeToY(c.Y, viewport.World) - viewport.Top));
 
-	private static void DrawOverlays(SKCanvas canvas, MapRequest request, double world, double left, double top, int scale, ILogger logger, SpriteSheet? sprites)
+	private static void DrawOverlays(SKCanvas canvas, MapRequest request, Viewport viewport, ILogger logger, SpriteSheet? sprites)
 	{
+		var scale = viewport.Scale;
+
 		foreach (var poly in request.Polygons)
 		{
-			using var path = BuildLinePath([.. poly.Points.Select(p => new Coordinate(p.Longitude, p.Latitude))], world, left, top, close: true);
+			using var path = BuildLinePath([.. poly.Points.Select(p => new Coordinate(p.Longitude, p.Latitude))], viewport, close: true);
 			using var fp = new SKPaint { Color = MapColors.Parse(poly.FillColor, new SKColor(0xF5, 0x9E, 0x0B)).WithAlpha((byte)(poly.FillOpacity * 255)), IsAntialias = true, Style = SKPaintStyle.Fill };
 			canvas.DrawPath(path, fp);
 			using var lp = new SKPaint { Color = MapColors.Parse(poly.StrokeColor, new SKColor(0xF5, 0x9E, 0x0B)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)poly.StrokeWidth * scale };
@@ -439,7 +483,7 @@ public sealed class SkiaSharpMapRenderer(
 
 		foreach (var line in request.Paths)
 		{
-			using var path = BuildLinePath([.. line.Points.Select(p => new Coordinate(p.Longitude, p.Latitude))], world, left, top, close: false);
+			using var path = BuildLinePath([.. line.Points.Select(p => new Coordinate(p.Longitude, p.Latitude))], viewport, close: false);
 			using var p = new SKPaint { Color = MapColors.Parse(line.Color, new SKColor(0x00, 0x00, 0xFF)).WithAlpha((byte)(line.Opacity * 255)), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = (float)line.Width * scale, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
 			canvas.DrawPath(path, p);
 		}
@@ -447,7 +491,7 @@ public sealed class SkiaSharpMapRenderer(
 		var fallbackMarker = new SKColor(0xDC, 0x26, 0x26);
 		foreach (var m in request.Markers)
 		{
-			var pt = Project(new Coordinate(m.Location.Longitude, m.Location.Latitude), world, left, top);
+			var pt = Project(new Coordinate(m.Location.Longitude, m.Location.Latitude), viewport);
 			var metrics = MarkerMetrics.For(m.Scale, scale);
 			var markerColor = MapColors.Parse(m.Color, fallbackMarker);
 

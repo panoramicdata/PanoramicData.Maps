@@ -1,14 +1,27 @@
-using System.Globalization;
-using System.Text.Json;
+﻿using Refit;
 
 namespace PanoramicData.Maps;
 
 /// <summary>
 /// An <see cref="IGeocoder"/> backed by a self-hosted Photon instance (komoot/photon).
 /// </summary>
-public sealed class PhotonGeocoder(HttpClient httpClient) : IGeocoder
+public sealed class PhotonGeocoder : IGeocoder
 {
-	private readonly HttpClient _httpClient = httpClient;
+	/// <summary>
+	/// Resolve the interface's relative paths against the client's base address the way
+	/// <see cref="HttpClient"/> itself does (RFC 3986), rather than Refit's legacy mode, which requires
+	/// an absolute path and would therefore discard any path prefix in the configured Photon URL.
+	/// </summary>
+	private static readonly RefitSettings Settings = new() { UrlResolution = UrlResolutionMode.Rfc3986 };
+
+	private readonly IPhotonApi _api;
+
+	/// <summary>
+	/// Creates a geocoder over an <see cref="HttpClient"/> whose <see cref="HttpClient.BaseAddress"/>
+	/// points at the Photon instance.
+	/// </summary>
+	/// <param name="httpClient">The client to call Photon with, typically from <c>IHttpClientFactory</c>.</param>
+	public PhotonGeocoder(HttpClient httpClient) => _api = RestService.For<IPhotonApi>(httpClient, Settings);
 
 	/// <inheritdoc />
 	public async Task<GeocodeResult?> GeocodeAsync(string query, string? language = null, CancellationToken cancellationToken = default)
@@ -19,52 +32,39 @@ public sealed class PhotonGeocoder(HttpClient httpClient) : IGeocoder
 		// does not rank a tiny same-spelling place above the country (issue #4).
 		var effective = Countries.ResolveName(query) ?? query;
 
-		var url = $"api?q={Uri.EscapeDataString(effective)}&limit=1{LangSuffix(language)}";
-		return await FirstFeatureAsync(url, cancellationToken).ConfigureAwait(false);
+		var response = await _api.SearchAsync(effective, 1, Language(language), cancellationToken).ConfigureAwait(false);
+		return FirstFeature(response);
 	}
 
 	/// <inheritdoc />
 	public async Task<GeocodeResult?> ReverseAsync(GeoPoint point, string? language = null, CancellationToken cancellationToken = default)
 	{
-		var lon = point.Longitude.ToString(CultureInfo.InvariantCulture);
-		var lat = point.Latitude.ToString(CultureInfo.InvariantCulture);
-		return await FirstFeatureAsync($"reverse?lon={lon}&lat={lat}{LangSuffix(language)}", cancellationToken).ConfigureAwait(false);
+		var response = await _api.ReverseAsync(point.Longitude, point.Latitude, Language(language), cancellationToken).ConfigureAwait(false);
+		return FirstFeature(response);
 	}
 
-	private static string LangSuffix(string? language)
-		=> string.IsNullOrWhiteSpace(language) ? string.Empty : $"&lang={Uri.EscapeDataString(language.Trim())}";
+	/// <summary>Normalises a language to null when blank, so Refit omits the parameter entirely.</summary>
+	private static string? Language(string? language)
+		=> string.IsNullOrWhiteSpace(language) ? null : language.Trim();
 
-	private async Task<GeocodeResult?> FirstFeatureAsync(string relativeUrl, CancellationToken cancellationToken)
+	/// <summary>
+	/// Reads the best match. A response with no features, or a first feature carrying no usable point,
+	/// is "not found" rather than an error - that is what Photon returns for an unmatched query.
+	/// </summary>
+	private static GeocodeResult? FirstFeature(PhotonFeatureCollection? response)
 	{
-		using var response = await _httpClient.GetAsync(relativeUrl, cancellationToken).ConfigureAwait(false);
-		response.EnsureSuccessStatusCode();
-		var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
-		using var doc = JsonDocument.Parse(bytes);
-
-		if (!doc.RootElement.TryGetProperty("features", out var features) || features.GetArrayLength() == 0)
+		if (response?.Features is not { Count: > 0 } features)
 		{
 			return null;
 		}
 
 		var feature = features[0];
-		var coords = feature.GetProperty("geometry").GetProperty("coordinates");
-		var location = new GeoPoint(coords[0].GetDouble(), coords[1].GetDouble());
-
-		string? name = null;
-		string? country = null;
-		if (feature.TryGetProperty("properties", out var props))
+		if (feature.Geometry?.Coordinates is not { Count: >= 2 } coordinates)
 		{
-			if (props.TryGetProperty("name", out var n))
-			{
-				name = n.GetString();
-			}
-
-			if (props.TryGetProperty("country", out var c))
-			{
-				country = c.GetString();
-			}
+			return null;
 		}
 
-		return new GeocodeResult(location, name, country);
+		var location = new GeoPoint(coordinates[0], coordinates[1]);
+		return new GeocodeResult(location, feature.Properties?.Name, feature.Properties?.Country);
 	}
 }

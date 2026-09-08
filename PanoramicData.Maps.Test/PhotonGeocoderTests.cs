@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Text;
 using AwesomeAssertions;
 using Xunit;
@@ -106,6 +106,46 @@ public class PhotonGeocoderTests
 		await geocoder.GeocodeAsync("Tokyo", cancellationToken: TestContext.Current.CancellationToken);
 
 		handler.LastRequestUri!.Query.Should().NotContain("lang=");
+	}
+
+	[Fact]
+	public async Task GeocodeAsync_KeepsPathPrefixOfBaseAddress()
+	{
+		// Photon is often reached through a reverse proxy that mounts it under a path. The request has
+		// to land under that prefix, not at the host root.
+		var handler = new CapturingHandler(LondonJson);
+		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/geocoder/") };
+		var geocoder = new PhotonGeocoder(http);
+
+		await geocoder.GeocodeAsync("London", cancellationToken: TestContext.Current.CancellationToken);
+
+		handler.LastRequestUri!.AbsolutePath.Should().Be("/geocoder/api");
+	}
+
+	[Fact]
+	public async Task ReverseAsync_SendsCoordinatesAndKeepsPathPrefix()
+	{
+		var handler = new CapturingHandler(LondonJson);
+		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/geocoder/") };
+		var geocoder = new PhotonGeocoder(http);
+
+		await geocoder.ReverseAsync(new GeoPoint(-0.1278, 51.5074), cancellationToken: TestContext.Current.CancellationToken);
+
+		handler.LastRequestUri!.AbsolutePath.Should().Be("/geocoder/reverse");
+		var query = Uri.UnescapeDataString(handler.LastRequestUri.Query);
+		query.Should().Contain("lon=-0.1278").And.Contain("lat=51.5074");
+	}
+
+	[Fact]
+	public async Task GeocodeAsync_RequestsASingleResult()
+	{
+		var handler = new CapturingHandler(LondonJson);
+		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/") };
+		var geocoder = new PhotonGeocoder(http);
+
+		await geocoder.GeocodeAsync("London", cancellationToken: TestContext.Current.CancellationToken);
+
+		handler.LastRequestUri!.Query.Should().Contain("limit=1");
 	}
 
 	[Fact]

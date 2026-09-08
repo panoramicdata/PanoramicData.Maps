@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using System.Reflection;
 
 namespace PanoramicData.Maps;
@@ -79,29 +79,42 @@ public static class Countries
 			return null;
 		}
 
-		var key = query.Trim();
-		string? alpha3 = null;
+		var alpha3 = CodeOrAliasToAlpha3(query.Trim());
+		return alpha3 is null ? null : PreferredOrIsoName(alpha3);
+	}
+
+	/// <summary>
+	/// Maps a whole-string colloquial alias ("UK", "USA") or an ISO alpha-2/alpha-3 code to its alpha-3,
+	/// or <see langword="null"/> when the text is neither. Length is checked before the lookup so an
+	/// ordinary place search never pays for it.
+	/// </summary>
+	private static string? CodeOrAliasToAlpha3(string key)
+	{
 		if (Colloquial.TryGetValue(key, out var colloquial))
 		{
-			alpha3 = colloquial;
-		}
-		else if (key.Length == 3 && ByAlpha3.TryGetValue(key, out var a3))
-		{
-			alpha3 = a3.Alpha3;
-		}
-		else if (key.Length == 2 && ByAlpha2.TryGetValue(key, out var a2))
-		{
-			alpha3 = a2.Alpha3;
+			return colloquial;
 		}
 
-		if (alpha3 is null)
+		if (key.Length == 3 && ByAlpha3.TryGetValue(key, out var a3))
 		{
-			return null;
+			return a3.Alpha3;
 		}
 
-		return PreferredNames.TryGetValue(alpha3, out var preferred)
-			? preferred
-			: ByAlpha3.TryGetValue(alpha3, out var country) ? country.Name : null;
+		return key.Length == 2 && ByAlpha2.TryGetValue(key, out var a2) ? a2.Alpha3 : null;
+	}
+
+	/// <summary>
+	/// The name to search for a country: the preferred short name where one is configured (so "Russia"
+	/// rather than "Russian Federation"), otherwise the ISO name.
+	/// </summary>
+	private static string? PreferredOrIsoName(string alpha3)
+	{
+		if (PreferredNames.TryGetValue(alpha3, out var preferred))
+		{
+			return preferred;
+		}
+
+		return ByAlpha3.TryGetValue(alpha3, out var country) ? country.Name : null;
 	}
 
 	/// <summary>

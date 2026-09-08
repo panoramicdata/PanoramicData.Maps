@@ -1,4 +1,4 @@
-using SkiaSharp;
+﻿using SkiaSharp;
 
 namespace PanoramicData.Maps;
 
@@ -55,16 +55,24 @@ public static class MapColors
 			return true;
 		}
 
-		// Normalise 0x-prefixed hex (Google) to bare hex.
-		var hex = v.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? v[2..]
-			: v.StartsWith('#') ? v[1..]
-			: v;
+		var hex = StripHexPrefix(v);
+		return IsHex(hex) && TryFromHex(hex, out color);
+	}
 
-		if (!IsHex(hex))
+	/// <summary>Normalises 0x-prefixed hex (Google) and #-prefixed hex (CSS) to bare hex digits.</summary>
+	private static string StripHexPrefix(string value)
+	{
+		if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
 		{
-			return false;
+			return value[2..];
 		}
 
+		return value.StartsWith('#') ? value[1..] : value;
+	}
+
+	/// <summary>Builds a colour from bare hex digits, in whichever of the three accepted lengths.</summary>
+	private static bool TryFromHex(string hex, out SKColor color)
+	{
 		switch (hex.Length)
 		{
 			case 6: // RRGGBB
@@ -77,6 +85,7 @@ public static class MapColors
 				color = new SKColor(Nyb(hex, 0), Nyb(hex, 1), Nyb(hex, 2));
 				return true;
 			default:
+				color = SKColors.Black;
 				return false;
 		}
 	}

@@ -1,3 +1,10 @@
+---
 exclude_paths:
   - "**/bin/**"
   - "**/obj/**"
+
+  # The security-contact address is the entire point of a SECURITY.md, and GitHub's vulnerability
+  # reporting convention expects it to be there in plain text. Codacy's PII detector flags it as an
+  # exposed email address, which is exactly what it is meant to be - a published, role-based inbox,
+  # not personal data. The file is six lines of static policy, so excluding it costs no coverage.
+  - "SECURITY.md"

@@ -32,8 +32,110 @@ public static class StaticMapRequestParser
 		error = null;
 		request = new MapRequest();
 
-		GeoPoint? center = null;
-		string? location = null;
+		ResolveCenter(query, out var center, out var location);
+
+		if (!TryParseView(query, options, out var view, out error)
+			|| !TryParseOverlays(query, out var overlays, out error))
+		{
+			return false;
+		}
+
+		if (NothingToDraw(center, location, overlays))
+		{
+			error = "Provide 'center' (lat,lng or a place name) and 'zoom', or at least one 'markers'/'path'/'region'.";
+			return false;
+		}
+
+		request = new MapRequest
+		{
+			Center = center,
+			Location = location,
+			Zoom = view.Zoom,
+			Width = view.Width,
+			Height = view.Height,
+			Scale = view.Scale,
+			Format = view.Format,
+			StyleUrl = view.StyleUrl,
+			Markers = overlays.Markers,
+			Paths = overlays.Paths,
+			Polygons = overlays.Polygons,
+			Regions = overlays.Regions
+		};
+		return true;
+	}
+
+	/// <summary>The view parameters: how big the image is, how far in, and how it is styled and encoded.</summary>
+	private sealed record ViewSettings(int Width, int Height, double? Zoom, int Scale, MapImageFormat Format, string? StyleUrl);
+
+	/// <summary>Everything drawn on top of the base map.</summary>
+	private sealed record Overlays(List<MarkerSpec> Markers, List<PathSpec> Paths, List<PolygonSpec> Polygons, List<RegionSpec> Regions);
+
+	/// <summary>
+	/// Reads the view parameters, rejecting a request that exceeds a configured limit or names an unknown
+	/// style rather than silently clamping or substituting one (issues #3 and #7).
+	/// </summary>
+	private static bool TryParseView(
+		IReadOnlyDictionary<string, IReadOnlyList<string>> query,
+		MapsOptions options,
+		out ViewSettings view,
+		out string? error)
+	{
+		view = null!;
+
+		if (!ParseSize(First(query, "size"), First(query, "width"), First(query, "height"), options, out var width, out var height, out error)
+			|| !ParseScale(First(query, "scale"), options, out var scale, out error)
+			|| !ResolveStyle(First(query, "style") ?? First(query, "maptype"), options, out var styleUrl, out error))
+		{
+			return false;
+		}
+
+		view = new ViewSettings(
+			width,
+			height,
+			ParseZoom(First(query, "zoom")),
+			scale,
+			FormatOf(First(query, "format")),
+			styleUrl);
+		return true;
+	}
+
+	/// <summary>
+	/// Reads every overlay group. Markers and regions can be rejected - a remote icon URL, an unknown
+	/// country - whereas a path that names fewer than two points is simply not drawn.
+	/// </summary>
+	private static bool TryParseOverlays(
+		IReadOnlyDictionary<string, IReadOnlyList<string>> query,
+		out Overlays overlays,
+		out string? error)
+	{
+		var markers = new List<MarkerSpec>();
+		var paths = new List<PathSpec>();
+		var polygons = new List<PolygonSpec>();
+		var regions = new List<RegionSpec>();
+		overlays = new Overlays(markers, paths, polygons, regions);
+
+		if (!ParseGroups(query, "markers", markers, ParseMarkerGroup, out error))
+		{
+			return false;
+		}
+
+		foreach (var group in All(query, "path"))
+		{
+			ParsePathGroup(group, paths, polygons);
+		}
+
+		return ParseGroups(query, "region", regions, ParseRegionGroup, out error);
+	}
+
+	/// <summary>
+	/// Reads the requested centre. Google's <c>center</c> carries either a <c>lat,lng</c> pair or a place
+	/// name; a name is left for the caller to geocode. <c>location</c> is the fallback spelling.
+	/// </summary>
+	private static void ResolveCenter(IReadOnlyDictionary<string, IReadOnlyList<string>> query, out GeoPoint? center, out string? location)
+	{
+		center = null;
+		location = null;
+
 		var centerRaw = First(query, "center");
 		if (!string.IsNullOrWhiteSpace(centerRaw))
 		{
@@ -45,84 +147,52 @@ public static class StaticMapRequestParser
 			{
 				location = centerRaw;
 			}
+
+			return;
 		}
 
-		if (center is null && location is null)
+		var loc = First(query, "location");
+		if (!string.IsNullOrWhiteSpace(loc))
 		{
-			var loc = First(query, "location");
-			if (!string.IsNullOrWhiteSpace(loc))
-			{
-				location = loc;
-			}
+			location = loc;
 		}
+	}
 
-		if (!ParseSize(First(query, "size"), First(query, "width"), First(query, "height"), options, out var width, out var height, out error))
+	private static double? ParseZoom(string? raw)
+		=> TryDouble(raw, out var z) ? Math.Clamp(z, 0, 22) : null;
+
+	/// <summary>
+	/// Runs a group parser over every repetition of a query key, stopping at the first rejection so the
+	/// caller reports the offending group rather than the last one.
+	/// </summary>
+	private delegate bool GroupParser<T>(string group, List<T> into, out string? error);
+
+	private static bool ParseGroups<T>(
+		IReadOnlyDictionary<string, IReadOnlyList<string>> query,
+		string key,
+		List<T> into,
+		GroupParser<T> parse,
+		out string? error)
+	{
+		error = null;
+		foreach (var group in All(query, key))
 		{
-			return false;
-		}
-
-		double? zoom = TryDouble(First(query, "zoom"), out var z) ? Math.Clamp(z, 0, 22) : null;
-
-		if (!ParseScale(First(query, "scale"), options, out var scale, out error))
-		{
-			return false;
-		}
-
-		var format = FormatOf(First(query, "format"));
-
-		if (!ResolveStyle(First(query, "style") ?? First(query, "maptype"), options, out var styleUrl, out error))
-		{
-			return false;
-		}
-
-		var markers = new List<MarkerSpec>();
-		foreach (var group in All(query, "markers"))
-		{
-			if (!ParseMarkerGroup(group, markers, out error))
+			if (!parse(group, into, out error))
 			{
 				return false;
 			}
 		}
 
-		var paths = new List<PathSpec>();
-		var polygons = new List<PolygonSpec>();
-		foreach (var group in All(query, "path"))
-		{
-			ParsePathGroup(group, paths, polygons);
-		}
-
-		var regions = new List<RegionSpec>();
-		foreach (var group in All(query, "region"))
-		{
-			if (!ParseRegionGroup(group, regions, out error))
-			{
-				return false;
-			}
-		}
-
-		if (center is null && location is null && markers.Count == 0 && paths.Count == 0 && polygons.Count == 0 && regions.Count == 0)
-		{
-			error = "Provide 'center' (lat,lng or a place name) and 'zoom', or at least one 'markers'/'path'/'region'.";
-			return false;
-		}
-
-		request = new MapRequest
-		{
-			Center = center,
-			Location = location,
-			Zoom = zoom,
-			Width = width,
-			Height = height,
-			Scale = scale,
-			Format = format,
-			StyleUrl = styleUrl,
-			Markers = markers,
-			Paths = paths,
-			Polygons = polygons,
-			Regions = regions
-		};
 		return true;
 	}
+
+	private static bool NothingToDraw(GeoPoint? center, string? location, Overlays overlays)
+		=> center is null
+			&& location is null
+			&& overlays.Markers.Count == 0
+			&& overlays.Paths.Count == 0
+			&& overlays.Polygons.Count == 0
+			&& overlays.Regions.Count == 0;
 
 	/// <summary>
 	/// Parses one <c>markers</c> group. A remote <c>icon:</c> URL is rejected rather than quietly
@@ -132,36 +202,54 @@ public static class StaticMapRequestParser
 	private static bool ParseMarkerGroup(string group, List<MarkerSpec> into, out string? error)
 	{
 		error = null;
-		string color = "red";
-		string? label = null;
-		double markerScale = 1.0;
-		string? icon = null;
-		var locations = new List<GeoPoint>();
-
-		foreach (var part in group.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+		var marker = new MarkerDescriptors();
+		foreach (var part in Descriptors(group))
 		{
-			if (TryDescriptor(part, "color", out var c)) { color = c; }
-			else if (TryDescriptor(part, "label", out var l)) { label = l; }
-			else if (TryDescriptor(part, "icon", out var i)) { icon = i; }
-			else if (TryDescriptor(part, "scale", out var sc) && double.TryParse(sc, NumberStyles.Float, CultureInfo.InvariantCulture, out var scv)) { markerScale = scv; }
-			else if (TryDescriptor(part, "size", out var sz)) { markerScale = MarkerMetrics.ScaleForSize(sz); }
-			else if (TryLatLng(part, out var gp)) { locations.Add(gp); }
-			// non-lat,lng location tokens (place names) are not supported per-marker yet - ignored.
+			marker.Apply(part);
 		}
 
-		if (icon is not null && LooksLikeUrl(icon))
+		if (marker.Icon is not null && LooksLikeUrl(marker.Icon))
 		{
 			error = $"A marker 'icon' must name an icon from the map style's sprite sheet (for example icon:cafe); "
-				+ $"remote icon URLs such as '{icon}' are not supported. GET /v1/icons lists the available names.";
+				+ $"remote icon URLs such as '{marker.Icon}' are not supported. GET /v1/icons lists the available names.";
 			return false;
 		}
 
-		foreach (var loc in locations)
+		foreach (var loc in marker.Locations)
 		{
-			into.Add(new MarkerSpec { Location = loc, Color = color, Label = label, Icon = icon, Scale = markerScale });
+			into.Add(new MarkerSpec { Location = loc, Color = marker.Color, Label = marker.Label, Icon = marker.Icon, Scale = marker.Scale });
 		}
 
 		return true;
+	}
+
+	/// <summary>
+	/// The state one <c>markers</c> group accumulates as its descriptors are read left to right. The
+	/// descriptors are applied in the order written, so a later one overrides an earlier one - which is
+	/// why this is a running state rather than a lookup over the whole group.
+	/// </summary>
+	private sealed class MarkerDescriptors
+	{
+		public string Color { get; private set; } = "red";
+
+		public string? Label { get; private set; }
+
+		public string? Icon { get; private set; }
+
+		public double Scale { get; private set; } = 1.0;
+
+		public List<GeoPoint> Locations { get; } = [];
+
+		public void Apply(string part)
+		{
+			if (TryDescriptor(part, "color", out var c)) { Color = c; }
+			else if (TryDescriptor(part, "label", out var l)) { Label = l; }
+			else if (TryDescriptor(part, "icon", out var i)) { Icon = i; }
+			else if (TryDescriptor(part, "scale", out var sc)) { Scale = Number(sc, Scale); }
+			else if (TryDescriptor(part, "size", out var sz)) { Scale = MarkerMetrics.ScaleForSize(sz); }
+			else if (TryLatLng(part, out var gp)) { Locations.Add(gp); }
+			// non-lat,lng location tokens (place names) are not supported per-marker yet - ignored.
+		}
 	}
 
 	private static bool LooksLikeUrl(string icon)
@@ -171,32 +259,46 @@ public static class StaticMapRequestParser
 
 	private static void ParsePathGroup(string group, List<PathSpec> paths, List<PolygonSpec> polygons)
 	{
-		string color = "#0000ff";
-		string? fillColor = null;
-		double weight = 5;
-		var points = new List<GeoPoint>();
-
-		foreach (var part in group.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+		var path = new PathDescriptors();
+		foreach (var part in Descriptors(group))
 		{
-			if (TryDescriptor(part, "color", out var c)) { color = c; }
-			else if (TryDescriptor(part, "fillcolor", out var fc)) { fillColor = fc; }
-			else if (TryDescriptor(part, "weight", out var w) && double.TryParse(w, NumberStyles.Float, CultureInfo.InvariantCulture, out var wv)) { weight = wv; }
-			else if (TryDescriptor(part, "geodesic", out _)) { /* accepted, ignored */ }
-			else if (TryLatLng(part, out var gp)) { points.Add(gp); }
+			path.Apply(part);
 		}
 
-		if (points.Count < 2)
+		if (path.Points.Count < 2)
 		{
 			return;
 		}
 
-		if (fillColor is not null)
+		// A fill colour is what distinguishes a polygon from a line in this grammar.
+		if (path.FillColor is not null)
 		{
-			polygons.Add(new PolygonSpec { Points = points, FillColor = fillColor, FillOpacity = 0.4, StrokeColor = color, StrokeWidth = weight });
+			polygons.Add(new PolygonSpec { Points = path.Points, FillColor = path.FillColor, FillOpacity = 0.4, StrokeColor = path.Color, StrokeWidth = path.Weight });
 		}
 		else
 		{
-			paths.Add(new PathSpec { Points = points, Color = color, Width = weight });
+			paths.Add(new PathSpec { Points = path.Points, Color = path.Color, Width = path.Weight });
+		}
+	}
+
+	/// <summary>The running state of one <c>path</c> group. See <see cref="MarkerDescriptors"/>.</summary>
+	private sealed class PathDescriptors
+	{
+		public string Color { get; private set; } = "#0000ff";
+
+		public string? FillColor { get; private set; }
+
+		public double Weight { get; private set; } = 5;
+
+		public List<GeoPoint> Points { get; } = [];
+
+		public void Apply(string part)
+		{
+			if (TryDescriptor(part, "color", out var c)) { Color = c; }
+			else if (TryDescriptor(part, "fillcolor", out var fc)) { FillColor = fc; }
+			else if (TryDescriptor(part, "weight", out var w)) { Weight = Number(w, Weight); }
+			else if (TryDescriptor(part, "geodesic", out _)) { /* accepted, ignored */ }
+			else if (TryLatLng(part, out var gp)) { Points.Add(gp); }
 		}
 	}
 
@@ -207,24 +309,36 @@ public static class StaticMapRequestParser
 	/// </summary>
 	private static bool ParseRegionGroup(string group, List<RegionSpec> into, out string? error)
 	{
-		error = null;
-		string? code = null;
-		string fill = "#dc2626";
-		double opacity = 0.5;
-		string? stroke = null;
-		double weight = 1;
-
-		foreach (var part in group.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+		var region = new RegionDescriptors();
+		foreach (var part in Descriptors(group))
 		{
-			if (TryDescriptor(part, "code", out var cd)) { code = cd; }
-			else if (TryDescriptor(part, "fill", out var f)) { fill = f; }
-			else if (TryDescriptor(part, "fillcolor", out var fc)) { fill = fc; }
-			else if (TryDescriptor(part, "opacity", out var o) && double.TryParse(o, NumberStyles.Float, CultureInfo.InvariantCulture, out var ov)) { opacity = Math.Clamp(ov, 0, 1); }
-			else if (TryDescriptor(part, "stroke", out var st)) { stroke = st; }
-			else if (TryDescriptor(part, "weight", out var w) && double.TryParse(w, NumberStyles.Float, CultureInfo.InvariantCulture, out var wv)) { weight = wv; }
-			else if (code is null) { code = part; } // bare code (e.g. region=GB)
+			region.Apply(part);
 		}
 
+		if (!TryResolveRegionCode(region.Code, out error))
+		{
+			return false;
+		}
+
+		into.Add(new RegionSpec
+		{
+			Code = region.Code!,
+			FillColor = region.Fill,
+			FillOpacity = region.Opacity,
+			StrokeColor = region.Stroke,
+			StrokeWidth = region.Weight
+		});
+		return true;
+	}
+
+	/// <summary>
+	/// Checks that a region code names a country this renderer actually has a boundary for. Reporting
+	/// the two failures separately matters: an unknown code is the caller's typo, while a known country
+	/// with no boundary is a limit of the dataset (issue #6).
+	/// </summary>
+	private static bool TryResolveRegionCode(string? code, out string? error)
+	{
+		error = null;
 		if (string.IsNullOrWhiteSpace(code))
 		{
 			error = "A 'region' must specify a country code, e.g. region=code:GB|fill:red.";
@@ -244,8 +358,32 @@ public static class StaticMapRequestParser
 			return false;
 		}
 
-		into.Add(new RegionSpec { Code = code, FillColor = fill, FillOpacity = opacity, StrokeColor = stroke, StrokeWidth = weight });
 		return true;
+	}
+
+	/// <summary>The running state of one <c>region</c> group. See <see cref="MarkerDescriptors"/>.</summary>
+	private sealed class RegionDescriptors
+	{
+		public string? Code { get; private set; }
+
+		public string Fill { get; private set; } = "#dc2626";
+
+		public double Opacity { get; private set; } = 0.5;
+
+		public string? Stroke { get; private set; }
+
+		public double Weight { get; private set; } = 1;
+
+		public void Apply(string part)
+		{
+			if (TryDescriptor(part, "code", out var cd)) { Code = cd; }
+			else if (TryDescriptor(part, "fill", out var f)) { Fill = f; }
+			else if (TryDescriptor(part, "fillcolor", out var fc)) { Fill = fc; }
+			else if (TryDescriptor(part, "opacity", out var o)) { Opacity = Math.Clamp(Number(o, Opacity), 0, 1); }
+			else if (TryDescriptor(part, "stroke", out var st)) { Stroke = st; }
+			else if (TryDescriptor(part, "weight", out var w)) { Weight = Number(w, Weight); }
+			else if (Code is null) { Code = part; } // bare code (e.g. region=GB)
+		}
 	}
 
 	/// <summary>
@@ -313,22 +451,7 @@ public static class StaticMapRequestParser
 	private static bool ParseSize(string? size, string? width, string? height, MapsOptions options, out int w, out int h, out string? error)
 	{
 		error = null;
-		w = 800;
-		h = 600;
-		if (!string.IsNullOrWhiteSpace(size))
-		{
-			var parts = size.Split(['x', 'X']);
-			if (parts.Length == 2 && int.TryParse(parts[0], out var pw) && int.TryParse(parts[1], out var ph))
-			{
-				w = pw;
-				h = ph;
-			}
-		}
-		else
-		{
-			if (int.TryParse(width, out var pw)) { w = pw; }
-			if (int.TryParse(height, out var ph)) { h = ph; }
-		}
+		ReadRequestedSize(size, width, height, out w, out h);
 
 		if (w > options.MaxWidth)
 		{
@@ -345,6 +468,30 @@ public static class StaticMapRequestParser
 		w = Math.Max(1, w);
 		h = Math.Max(1, h);
 		return true;
+	}
+
+	/// <summary>
+	/// Reads the requested pixel dimensions from either the combined <c>size=WxH</c> form or the separate
+	/// <c>width</c>/<c>height</c> parameters, leaving the defaults in place for anything unparseable.
+	/// </summary>
+	private static void ReadRequestedSize(string? size, string? width, string? height, out int w, out int h)
+	{
+		w = 800;
+		h = 600;
+
+		if (string.IsNullOrWhiteSpace(size))
+		{
+			if (int.TryParse(width, out var pw)) { w = pw; }
+			if (int.TryParse(height, out var ph)) { h = ph; }
+			return;
+		}
+
+		var parts = size.Split(['x', 'X']);
+		if (parts.Length == 2 && int.TryParse(parts[0], out var sw) && int.TryParse(parts[1], out var sh))
+		{
+			w = sw;
+			h = sh;
+		}
 	}
 
 	/// <summary>Parses a Google <c>lat,lng</c> pair into a <see cref="GeoPoint"/> (which stores lon,lat).</summary>
@@ -371,6 +518,17 @@ public static class StaticMapRequestParser
 
 		return false;
 	}
+
+	/// <summary>Splits a pipe-delimited group into its descriptor tokens, in the order written.</summary>
+	private static string[] Descriptors(string group)
+		=> group.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+	/// <summary>
+	/// Reads a descriptor's numeric value, keeping the current one when the text is not a number - so a
+	/// malformed 'weight:wide' is ignored rather than resetting the value to a default.
+	/// </summary>
+	private static double Number(string value, double fallback)
+		=> double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
 
 	private static bool TryDescriptor(string part, string key, out string value)
 	{
