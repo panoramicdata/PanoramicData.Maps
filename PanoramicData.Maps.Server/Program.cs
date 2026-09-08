@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using PanoramicData.Maps;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -165,4 +165,13 @@ app.MapPost("/v1/staticmap", async (MapRequest request, IGeocoder geocoder, IMap
 app.Run();
 
 /// <summary>Program entry point marker (enables WebApplicationFactory in tests).</summary>
-public partial class Program;
+public partial class Program
+{
+	/// <summary>
+	/// Not instantiable. The type exists only so tests can name it as the entry point for
+	/// <c>WebApplicationFactory&lt;Program&gt;</c>, which needs a class rather than a static one.
+	/// </summary>
+	protected Program()
+	{
+	}
+}

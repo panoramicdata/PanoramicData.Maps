@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace PanoramicData.Maps;
 
@@ -317,7 +317,7 @@ public static class StaticMapRequestParser
 		h = 600;
 		if (!string.IsNullOrWhiteSpace(size))
 		{
-			var parts = size.Split('x', 'X');
+			var parts = size.Split(['x', 'X']);
 			if (parts.Length == 2 && int.TryParse(parts[0], out var pw) && int.TryParse(parts[1], out var ph))
 			{
 				w = pw;

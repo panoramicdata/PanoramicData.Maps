@@ -385,6 +385,11 @@ public sealed class SkiaSharpMapRenderer(
 					AddGeometry(builder, g, world, left, top);
 				}
 				break;
+			default:
+				// Every geometry type the vector-tile decoder emits is handled above. Anything else
+				// contributes nothing to the path rather than throwing: one odd feature in a tile
+				// should not cost the caller the whole map.
+				break;
 		}
 	}
 

@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -50,7 +50,7 @@ public class MarkerRenderingTests
 		return minX == int.MaxValue ? SKRectI.Empty : new SKRectI(minX, minY, maxX + 1, maxY + 1);
 	}
 
-	private static async Task<SKBitmap> RenderCentredMarkerAsync(int scale = 1, double markerScale = 1)
+	private static async Task<SKBitmap> RenderCentredMarkerAsync(int scale, double markerScale)
 	{
 		var centre = new GeoPoint(-0.1278, 51.5074);
 		var request = new MapRequest
@@ -70,7 +70,7 @@ public class MarkerRenderingTests
 	[Fact]
 	public async Task Marker_IsDrawnAsATallPinRatherThanASmallDot()
 	{
-		using var bmp = await RenderCentredMarkerAsync();
+		using var bmp = await RenderCentredMarkerAsync(scale: 1, markerScale: 1);
 
 		var bounds = MarkerBounds(bmp);
 		bounds.Should().NotBe(SKRectI.Empty, "the marker should have been drawn");
@@ -82,7 +82,7 @@ public class MarkerRenderingTests
 	[Fact]
 	public async Task Marker_PointsAtItsCoordinate()
 	{
-		using var bmp = await RenderCentredMarkerAsync();
+		using var bmp = await RenderCentredMarkerAsync(scale: 1, markerScale: 1);
 
 		// The marker sits at the map centre, so its anchor is the middle pixel.
 		var anchorX = bmp.Width / 2;
@@ -101,8 +101,8 @@ public class MarkerRenderingTests
 	[Fact]
 	public async Task Marker_HonoursTheImageScale()
 	{
-		using var single = await RenderCentredMarkerAsync(scale: 1);
-		using var retina = await RenderCentredMarkerAsync(scale: 2);
+		using var single = await RenderCentredMarkerAsync(scale: 1, markerScale: 1);
+		using var retina = await RenderCentredMarkerAsync(scale: 2, markerScale: 1);
 
 		MarkerBounds(retina).Height.Should().BeInRange(
 			(int)(MarkerBounds(single).Height * 1.8),
@@ -113,8 +113,8 @@ public class MarkerRenderingTests
 	[Fact]
 	public async Task SmallerMarkerScale_DrawsASmallerPin()
 	{
-		using var normal = await RenderCentredMarkerAsync(markerScale: 1);
-		using var tiny = await RenderCentredMarkerAsync(markerScale: MarkerMetrics.ScaleForSize("tiny"));
+		using var normal = await RenderCentredMarkerAsync(scale: 1, markerScale: 1);
+		using var tiny = await RenderCentredMarkerAsync(scale: 1, markerScale: MarkerMetrics.ScaleForSize("tiny"));
 
 		MarkerBounds(tiny).Height.Should().BeLessThan(MarkerBounds(normal).Height);
 		MarkerBounds(tiny).Height.Should().BeGreaterThan(8, "even the smallest pin must remain visible");
