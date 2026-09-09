@@ -40,7 +40,17 @@ if ($status) {
 
 # Ensure we are up to date with origin
 git fetch origin main --quiet
+if ($LASTEXITCODE -ne 0) {
+	Write-Error "Failed to fetch origin/main. Without it there is no way to tell whether this branch is up to date."
+	exit 1
+}
+
 $behind = git rev-list --count HEAD..origin/main
+if ($LASTEXITCODE -ne 0) {
+	Write-Error "Failed to compare HEAD with origin/main."
+	exit 1
+}
+
 if ($behind -gt 0) {
 	Write-Error "Local branch is behind origin/main by $behind commit(s)."
 	exit 1
@@ -88,9 +98,24 @@ if ($existingTag) {
 	exit 1
 }
 
-# Create and push tag
+# Create and push tag. This is the step that cannot be taken back, so both halves are checked: an
+# unchecked push once reported a successful release and then blamed the workflow for the run that
+# never appeared, because the tag had never left this machine.
 git tag $version
+if ($LASTEXITCODE -ne 0) {
+	Write-Error "Failed to create tag $version."
+	exit 1
+}
+
 git push origin $version
+if ($LASTEXITCODE -ne 0) {
+	# Remove the local tag as well. Leaving it behind makes the next attempt fail on 'tag already
+	# exists' for a version that was never released, which is a confusing place to start debugging.
+	git tag -d $version | Out-Null
+	Write-Error "Failed to push tag $version to origin. The local tag has been removed; re-run once the cause is fixed."
+	exit 1
+}
+
 Write-Status "Tag $version pushed."
 
 if ($SkipPublishVerification) {
