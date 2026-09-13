@@ -7,7 +7,7 @@ namespace PanoramicData.Maps;
 public static class WebMercator
 {
 	/// <summary>The tile edge length in pixels used for the world-pixel convention (512, MapLibre-style).</summary>
-	public const int TileSize = 512;
+	public static int TileSize { get; } = 512;
 
 	/// <summary>The side length of the whole world, in pixels, at the given zoom.</summary>
 	/// <param name="zoom">Zoom level.</param>

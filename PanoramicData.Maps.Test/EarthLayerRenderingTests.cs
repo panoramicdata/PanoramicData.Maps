@@ -36,7 +36,7 @@ public class EarthLayerRenderingTests
 
 	private sealed class NoTilesHandler : HttpMessageHandler
 	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage _, CancellationToken cancellationToken)
 			=> Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
 	}
 
@@ -44,11 +44,11 @@ public class EarthLayerRenderingTests
 	{
 		public List<(LogLevel Level, string Message)> Entries { get; } = [];
 
-		public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+		public IDisposable? BeginScope<TState>(TState _) where TState : notnull => null;
 
-		public bool IsEnabled(LogLevel logLevel) => true;
+		public bool IsEnabled(LogLevel _) => true;
 
-		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+		public void Log<TState>(LogLevel logLevel, EventId _, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 			=> Entries.Add((logLevel, formatter(state, exception)));
 	}
 

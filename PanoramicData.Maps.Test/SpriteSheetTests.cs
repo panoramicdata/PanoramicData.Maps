@@ -81,7 +81,7 @@ public class SpriteSheetTests
 	{
 		var handler = new SpriteHandler();
 
-		var sheet = await CreateProvider(handler).GetAsync("https://tiles.example/style.json", null, TestContext.Current.CancellationToken);
+		var sheet = await CreateProvider(handler).GetAsync(new SpriteSheetRequest("https://tiles.example/style.json", null), TestContext.Current.CancellationToken);
 
 		sheet.Should().NotBeNull();
 		handler.StyleRequests.Should().Be(1);
@@ -93,7 +93,7 @@ public class SpriteSheetTests
 	{
 		var handler = new SpriteHandler();
 
-		var sheet = await CreateProvider(handler).GetAsync("https://tiles.example/style.json", "https://tiles.example/sprites/v4/light", TestContext.Current.CancellationToken);
+		var sheet = await CreateProvider(handler).GetAsync(new SpriteSheetRequest("https://tiles.example/style.json", "https://tiles.example/sprites/v4/light"), TestContext.Current.CancellationToken);
 
 		sheet.Should().NotBeNull();
 		handler.StyleRequests.Should().Be(0, "an explicit sprite URL needs no style lookup");
@@ -108,7 +108,7 @@ public class SpriteSheetTests
 
 		for (var i = 0; i < 4; i++)
 		{
-			(await provider.GetAsync("https://tiles.example/style.json", null, TestContext.Current.CancellationToken)).Should().NotBeNull();
+			(await provider.GetAsync(new SpriteSheetRequest("https://tiles.example/style.json", null), TestContext.Current.CancellationToken)).Should().NotBeNull();
 		}
 
 		handler.StyleRequests.Should().Be(1);
@@ -119,7 +119,7 @@ public class SpriteSheetTests
 	[Fact]
 	public async Task TryGet_ResolvesIconsAndHonoursPixelRatio()
 	{
-		var sheet = (await CreateProvider(new SpriteHandler()).GetAsync("https://tiles.example/style.json", null, TestContext.Current.CancellationToken))!;
+		var sheet = (await CreateProvider(new SpriteHandler()).GetAsync(new SpriteSheetRequest("https://tiles.example/style.json", null), TestContext.Current.CancellationToken))!;
 
 		sheet.TryGet("cafe", out var cafe).Should().BeTrue();
 		cafe.Source.Width.Should().Be(10);
@@ -135,14 +135,14 @@ public class SpriteSheetTests
 	[Fact]
 	public async Task TryGet_IsCaseInsensitive()
 	{
-		var sheet = (await CreateProvider(new SpriteHandler()).GetAsync("https://tiles.example/style.json", null, TestContext.Current.CancellationToken))!;
+		var sheet = (await CreateProvider(new SpriteHandler()).GetAsync(new SpriteSheetRequest("https://tiles.example/style.json", null), TestContext.Current.CancellationToken))!;
 
 		sheet.TryGet("CAFE", out _).Should().BeTrue("callers should not have to match the sprite sheet's casing");
 	}
 
 	private sealed class BrokenHandler : HttpMessageHandler
 	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage _, CancellationToken cancellationToken)
 			=> Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
 	}
 
@@ -150,7 +150,7 @@ public class SpriteSheetTests
 	public async Task GetAsync_ReturnsNullWhenTheSpriteSheetIsUnavailable()
 	{
 		// A map must still render if the sprite sheet cannot be fetched; markers fall back to pins.
-		var sheet = await CreateProvider(new BrokenHandler()).GetAsync("https://tiles.example/style.json", null, TestContext.Current.CancellationToken);
+		var sheet = await CreateProvider(new BrokenHandler()).GetAsync(new SpriteSheetRequest("https://tiles.example/style.json", null), TestContext.Current.CancellationToken);
 
 		sheet.Should().BeNull();
 	}

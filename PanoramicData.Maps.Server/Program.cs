@@ -65,7 +65,7 @@ app.MapGet("/", () => Results.Ok(new
 // are listed (issue #12).
 app.MapGet("/v1/icons", async (SpriteSheetProvider sprites, CancellationToken ct) =>
 {
-	var sheet = await sprites.GetAsync(options.TilesStyleUrl, options.SpriteUrl, ct);
+	var sheet = await sprites.GetAsync(new SpriteSheetRequest(options.TilesStyleUrl, options.SpriteUrl), ct);
 	return sheet is null
 		? Results.Ok(new { icons = Array.Empty<string>(), note = "The map style declares no sprite sheet, or it could not be fetched." })
 		: Results.Ok(new { icons = sheet.Names });
@@ -80,13 +80,13 @@ app.MapGet("/v1/limits", () => Results.Ok(new
 
 app.MapGet("/v1/geocode", async (string q, string? lang, IGeocoder geocoder, CancellationToken ct) =>
 {
-	var result = await geocoder.GeocodeAsync(q, lang ?? options.DefaultLanguage, ct);
+	var result = await geocoder.GeocodeAsync(new GeocodeRequest(q, lang ?? options.DefaultLanguage), ct);
 	return result is null ? Results.NotFound(new { error = "No match." }) : Results.Ok(result);
 });
 
 app.MapGet("/v1/reverse", async (double lon, double lat, string? lang, IGeocoder geocoder, CancellationToken ct) =>
 {
-	var result = await geocoder.ReverseAsync(new GeoPoint(lon, lat), lang ?? options.DefaultLanguage, ct);
+	var result = await geocoder.ReverseAsync(new ReverseGeocodeRequest(new GeoPoint(lon, lat), lang ?? options.DefaultLanguage), ct);
 	return result is null ? Results.NotFound(new { error = "No match." }) : Results.Ok(result);
 });
 
@@ -105,7 +105,7 @@ var staticMap = async (HttpRequest req, IGeocoder geocoder, IMapRenderer rendere
 
 	if (request.Center is null && !string.IsNullOrWhiteSpace(request.Location))
 	{
-		var geo = await geocoder.GeocodeAsync(request.Location!, options.DefaultLanguage, ct);
+		var geo = await geocoder.GeocodeAsync(new GeocodeRequest(request.Location!, options.DefaultLanguage), ct);
 		if (geo is null)
 		{
 			return Results.BadRequest(new { error = $"Could not geocode location '{request.Location}'." });
@@ -142,7 +142,7 @@ app.MapPost("/v1/staticmap", async (MapRequest request, IGeocoder geocoder, IMap
 	var resolved = request;
 	if (request.Center is null && !string.IsNullOrWhiteSpace(request.Location))
 	{
-		var geo = await geocoder.GeocodeAsync(request.Location!, options.DefaultLanguage, ct);
+		var geo = await geocoder.GeocodeAsync(new GeocodeRequest(request.Location!, options.DefaultLanguage), ct);
 		if (geo is null)
 		{
 			return Results.BadRequest(new { error = $"Could not geocode location '{request.Location}'." });

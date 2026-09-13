@@ -24,22 +24,26 @@ public sealed class PhotonGeocoder : IGeocoder
 	public PhotonGeocoder(HttpClient httpClient) => _api = RestService.For<IPhotonApi>(httpClient, Settings);
 
 	/// <inheritdoc />
-	public async Task<GeocodeResult?> GeocodeAsync(string query, string? language = null, CancellationToken cancellationToken = default)
+	public async Task<GeocodeResult?> GeocodeAsync(GeocodeRequest request, CancellationToken cancellationToken)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(query);
+		ArgumentNullException.ThrowIfNull(request);
+		ArgumentException.ThrowIfNullOrWhiteSpace(request.Query);
 
 		// Rewrite a bare country code / colloquial alias ("USA", "UK") to its canonical name so Photon
 		// does not rank a tiny same-spelling place above the country (issue #4).
-		var effective = Countries.ResolveName(query) ?? query;
+		var effective = Countries.ResolveName(request.Query) ?? request.Query;
 
-		var response = await _api.SearchAsync(effective, 1, NormaliseLanguage(language), cancellationToken).ConfigureAwait(false);
+		var response = await _api.SearchAsync(effective, 1, NormaliseLanguage(request.Language), cancellationToken).ConfigureAwait(false);
 		return FirstFeature(response);
 	}
 
 	/// <inheritdoc />
-	public async Task<GeocodeResult?> ReverseAsync(GeoPoint point, string? language = null, CancellationToken cancellationToken = default)
+	public async Task<GeocodeResult?> ReverseAsync(ReverseGeocodeRequest request, CancellationToken cancellationToken)
 	{
-		var response = await _api.ReverseAsync(point.Longitude, point.Latitude, NormaliseLanguage(language), cancellationToken).ConfigureAwait(false);
+		ArgumentNullException.ThrowIfNull(request);
+
+		var point = request.Location;
+		var response = await _api.ReverseAsync(point.Longitude, point.Latitude, NormaliseLanguage(request.Language), cancellationToken).ConfigureAwait(false);
 		return FirstFeature(response);
 	}
 

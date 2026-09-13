@@ -37,7 +37,7 @@ public class MarkerIconRenderingTests
 	/// <summary>404s every tile, serves the style and the sprite sheet.</summary>
 	private sealed class SpriteAndNoTilesHandler : HttpMessageHandler
 	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
 		{
 			var url = request.RequestUri!.ToString();
 
@@ -67,11 +67,11 @@ public class MarkerIconRenderingTests
 	{
 		public List<(LogLevel Level, string Message)> Entries { get; } = [];
 
-		public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+		public IDisposable? BeginScope<TState>(TState _) where TState : notnull => null;
 
-		public bool IsEnabled(LogLevel logLevel) => true;
+		public bool IsEnabled(LogLevel _) => true;
 
-		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+		public void Log<TState>(LogLevel logLevel, EventId _, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 			=> Entries.Add((logLevel, formatter(state, exception)));
 	}
 

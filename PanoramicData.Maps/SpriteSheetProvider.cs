@@ -6,6 +6,13 @@ using SkiaSharp;
 namespace PanoramicData.Maps;
 
 /// <summary>
+/// Which sprite sheet to fetch.
+/// </summary>
+/// <param name="StyleUrl">The MapLibre style JSON URL, used to discover the sprite URL.</param>
+/// <param name="SpriteUrlOverride">An explicit sprite base URL, which skips reading the style.</param>
+public sealed record SpriteSheetRequest(string StyleUrl, string? SpriteUrlOverride);
+
+/// <summary>
 /// Fetches and caches the map style's sprite sheet, so named marker icons (issue #12) can be drawn
 /// without contacting any host beyond the configured tile service, and without re-fetching the atlas
 /// for every rendered map.
@@ -19,16 +26,19 @@ public sealed class SpriteSheetProvider(HttpClient httpClient, ILogger<SpriteShe
 	/// The sprite sheet for a style, or <see langword="null"/> when the style declares none or it
 	/// cannot be fetched - in which case markers fall back to drawing a pin rather than failing.
 	/// </summary>
-	/// <param name="styleUrl">The MapLibre style JSON URL, used to discover the sprite URL.</param>
-	/// <param name="spriteUrlOverride">An explicit sprite base URL, which skips reading the style.</param>
+	/// <param name="request">Which sheet to fetch.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The sheet, or <see langword="null"/>.</returns>
-	public Task<SpriteSheet?> GetAsync(string styleUrl, string? spriteUrlOverride, CancellationToken cancellationToken = default)
+	public Task<SpriteSheet?> GetAsync(SpriteSheetRequest request, CancellationToken cancellationToken)
 	{
-		var key = string.IsNullOrWhiteSpace(spriteUrlOverride) ? $"style:{styleUrl}" : $"sprite:{spriteUrlOverride}";
+		ArgumentNullException.ThrowIfNull(request);
+
+		var key = string.IsNullOrWhiteSpace(request.SpriteUrlOverride)
+			? $"style:{request.StyleUrl}"
+			: $"sprite:{request.SpriteUrlOverride}";
 
 		// The task itself is cached, so concurrent first callers share one fetch rather than racing.
-		return _cache.GetOrAdd(key, _ => LoadAsync(styleUrl, spriteUrlOverride, cancellationToken));
+		return _cache.GetOrAdd(key, _ => LoadAsync(request.StyleUrl, request.SpriteUrlOverride, cancellationToken));
 	}
 
 	private async Task<SpriteSheet?> LoadAsync(string styleUrl, string? spriteUrlOverride, CancellationToken cancellationToken)

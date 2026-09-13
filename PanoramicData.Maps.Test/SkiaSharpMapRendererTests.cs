@@ -14,7 +14,7 @@ public class SkiaSharpMapRendererTests
 	// enough to exercise projection, overlay drawing and PNG encoding without a real tile server.
 	private sealed class NoTilesHandler : HttpMessageHandler
 	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage _, CancellationToken cancellationToken)
 			=> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
 	}
 

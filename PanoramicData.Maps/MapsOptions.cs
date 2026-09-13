@@ -8,7 +8,7 @@ namespace PanoramicData.Maps;
 public sealed class MapsOptions
 {
 	/// <summary>The configuration section name.</summary>
-	public const string SectionName = "Maps";
+	public static string SectionName { get; } = "Maps";
 
 	/// <summary>
 	/// Base URL of the Photon geocoder (e.g. <c>https://photon.panoramicdata.com</c>).

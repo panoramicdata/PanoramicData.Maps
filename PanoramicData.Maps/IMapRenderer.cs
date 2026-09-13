@@ -11,5 +11,5 @@ public interface IMapRenderer
 	/// <param name="request">The map to render.</param>
 	/// <param name="cancellationToken">A cancellation token.</param>
 	/// <returns>The rendered image.</returns>
-	Task<MapImage> RenderAsync(MapRequest request, CancellationToken cancellationToken = default);
+	Task<MapImage> RenderAsync(MapRequest request, CancellationToken cancellationToken);
 }

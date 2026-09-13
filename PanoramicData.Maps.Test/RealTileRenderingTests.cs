@@ -28,7 +28,7 @@ public class RealTileRenderingTests
 	/// <summary>Serves one captured tile for its own coordinates, and 404 (as the tile service does) for the rest.</summary>
 	private sealed class CapturedTileHandler(int zoom, int x, int y) : HttpMessageHandler
 	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
 		{
 			if (!request.RequestUri!.AbsolutePath.EndsWith($"/planet/{zoom}/{x}/{y}.mvt", StringComparison.Ordinal))
 			{

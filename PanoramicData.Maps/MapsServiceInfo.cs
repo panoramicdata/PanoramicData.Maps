@@ -15,7 +15,7 @@ namespace PanoramicData.Maps;
 public sealed record MapsServiceInfo(string Version, string? Commit)
 {
 	/// <summary>Used when no version information is stamped on the assembly at all.</summary>
-	public const string UnknownVersion = "unknown";
+	public static string UnknownVersion { get; } = "unknown";
 
 	/// <summary>The identity of the entry assembly - the running service.</summary>
 	public static MapsServiceInfo Current { get; } = For(Assembly.GetEntryAssembly() ?? typeof(MapsServiceInfo).Assembly);

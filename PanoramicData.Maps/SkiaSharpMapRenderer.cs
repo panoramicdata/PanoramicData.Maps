@@ -49,7 +49,7 @@ public sealed class SkiaSharpMapRenderer(
 	private sealed record LayerPaint(SKColor? Fill = null, SKColor? Stroke = null, float StrokeWidth = 1f, SKColor? Casing = null);
 
 	/// <inheritdoc />
-	public async Task<MapImage> RenderAsync(MapRequest request, CancellationToken cancellationToken = default)
+	public async Task<MapImage> RenderAsync(MapRequest request, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(request);
 
@@ -82,7 +82,7 @@ public sealed class SkiaSharpMapRenderer(
 		SpriteSheet? sprites = null;
 		if (_spriteSheetProvider is not null && request.Markers.Any(marker => !string.IsNullOrWhiteSpace(marker.Icon)))
 		{
-			sprites = await _spriteSheetProvider.GetAsync(styleUrl, _options.SpriteUrl, cancellationToken).ConfigureAwait(false);
+			sprites = await _spriteSheetProvider.GetAsync(new SpriteSheetRequest(styleUrl, _options.SpriteUrl), cancellationToken).ConfigureAwait(false);
 		}
 
 		MapOverlays.DrawRegions(canvas, request, viewport);

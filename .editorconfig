@@ -267,37 +267,18 @@ dotnet_diagnostic.IDE0055.severity = error
 dotnet_diagnostic.SYSLIB1045.severity = error
 
 #### Sonar rules deliberately not applied ####
-# Codacy reports these against this repository, and the reason each one is wrong for this code is
-# recorded below. Anything not listed here is expected to be fixed, not silenced.
+# S1172, S2339 and S2360 used to be silenced here. They are now fixed in the code instead: unused
+# override parameters are named '_', the three public constants are static read-only properties, and
+# the asynchronous API takes a request object with a required CancellationToken. Only the rule below
+# remains, because it cannot be satisfied without breaking the build.
 #
-# NOTE: these entries govern local and IDE analysis only. Codacy's own SonarCSharp tool does not read
-# .editorconfig severities - a scan taken after these lines were added reported all twenty-four
-# findings unchanged - so silencing them on Codacy additionally requires disabling the patterns in the
-# project's Code Patterns settings. The rationale is kept here so that whoever does so has it to hand.
-
-# S2360: Use the overloading mechanism instead of the optional parameters.
-# Every hit is 'CancellationToken cancellationToken = default' or 'string? language = null' on public
-# API. Optional parameters are the .NET convention for both, and this is a published NuGet package:
-# splitting them into overload pairs would change IGeocoder and IMapRenderer, breaking every existing
-# implementer and caller to satisfy a style preference the framework itself does not follow.
-dotnet_diagnostic.S2360.severity = none
-
-# S2339: Change this constant to a 'static' read-only property.
-# MapsOptions.SectionName, MapsServiceInfo.UnknownVersion and WebMercator.TileSize are genuine
-# compile-time constants. Consumers use them where only a constant is legal - attribute arguments and
-# 'case' labels - so a static property would not compile at those call sites.
-dotnet_diagnostic.S2339.severity = none
+# NOTE: this entry governs local and IDE analysis only. Codacy's own SonarCSharp tool does not read
+# .editorconfig severities - a scan taken after these lines were first added reported every finding
+# unchanged - so silencing anything on Codacy requires disabling the pattern in the project's Code
+# Patterns settings.
 
 # S2333: 'partial' is gratuitous in this context.
-# False positive. StaticMap.razor.cs is the code-behind for StaticMap.razor; the other half of the
-# class is generated at build time, so the modifier is required. The analyser sees only the .cs file.
+# False positive, and not fixable. StaticMap.razor.cs is the code-behind for StaticMap.razor; the
+# other half of the class is generated at build time, so removing the modifier stops the component
+# compiling. The analyser sees only the .cs file and cannot know the generated half exists.
 dotnet_diagnostic.S2333.severity = none
-
-# Test doubles implement framework contracts, so their parameter lists are fixed.
-[PanoramicData.Maps.Test/**.cs]
-
-# S1172: Remove this unused method parameter.
-# Every hit is an override or interface implementation whose signature is dictated by the framework -
-# HttpMessageHandler.SendAsync, ILogger.Log, ILogger.BeginScope, ILogger.IsEnabled. The parameters
-# cannot be removed, and renaming them to '_' would hide which framework argument each one is.
-dotnet_diagnostic.S1172.severity = none

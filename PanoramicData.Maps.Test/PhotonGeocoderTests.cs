@@ -11,7 +11,7 @@ public class PhotonGeocoderTests
 	{
 		public Uri? LastRequestUri { get; private set; }
 
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
 		{
 			LastRequestUri = request.RequestUri;
 			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -33,7 +33,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(new CapturingHandler(LondonJson)) { BaseAddress = new Uri("https://photon.example/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		var result = await geocoder.GeocodeAsync("London", cancellationToken: TestContext.Current.CancellationToken);
+		var result = await geocoder.GeocodeAsync(new GeocodeRequest("London", null), TestContext.Current.CancellationToken);
 
 		result.Should().NotBeNull();
 		result!.Name.Should().Be("London");
@@ -49,7 +49,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(new CapturingHandler(json)) { BaseAddress = new Uri("https://photon.example/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		var result = await geocoder.GeocodeAsync("Nowhere", cancellationToken: TestContext.Current.CancellationToken);
+		var result = await geocoder.GeocodeAsync(new GeocodeRequest("Nowhere", null), TestContext.Current.CancellationToken);
 
 		result.Should().BeNull();
 	}
@@ -67,7 +67,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		await geocoder.GeocodeAsync(input, cancellationToken: TestContext.Current.CancellationToken);
+		await geocoder.GeocodeAsync(new GeocodeRequest(input, null), TestContext.Current.CancellationToken);
 
 		Uri.UnescapeDataString(handler.LastRequestUri!.Query).Should().Contain($"q={expectedQuery}");
 	}
@@ -79,7 +79,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		await geocoder.GeocodeAsync("Paris", cancellationToken: TestContext.Current.CancellationToken);
+		await geocoder.GeocodeAsync(new GeocodeRequest("Paris", null), TestContext.Current.CancellationToken);
 
 		Uri.UnescapeDataString(handler.LastRequestUri!.Query).Should().Contain("q=Paris");
 	}
@@ -91,7 +91,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		await geocoder.GeocodeAsync("Tokyo", "en", TestContext.Current.CancellationToken);
+		await geocoder.GeocodeAsync(new GeocodeRequest("Tokyo", "en"), TestContext.Current.CancellationToken);
 
 		handler.LastRequestUri!.Query.Should().Contain("lang=en");
 	}
@@ -103,7 +103,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		await geocoder.GeocodeAsync("Tokyo", cancellationToken: TestContext.Current.CancellationToken);
+		await geocoder.GeocodeAsync(new GeocodeRequest("Tokyo", null), TestContext.Current.CancellationToken);
 
 		handler.LastRequestUri!.Query.Should().NotContain("lang=");
 	}
@@ -117,7 +117,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/geocoder/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		await geocoder.GeocodeAsync("London", cancellationToken: TestContext.Current.CancellationToken);
+		await geocoder.GeocodeAsync(new GeocodeRequest("London", null), TestContext.Current.CancellationToken);
 
 		handler.LastRequestUri!.AbsolutePath.Should().Be("/geocoder/api");
 	}
@@ -129,7 +129,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/geocoder/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		await geocoder.ReverseAsync(new GeoPoint(-0.1278, 51.5074), cancellationToken: TestContext.Current.CancellationToken);
+		await geocoder.ReverseAsync(new ReverseGeocodeRequest(new GeoPoint(-0.1278, 51.5074), null), TestContext.Current.CancellationToken);
 
 		handler.LastRequestUri!.AbsolutePath.Should().Be("/geocoder/reverse");
 		var query = Uri.UnescapeDataString(handler.LastRequestUri.Query);
@@ -143,7 +143,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		await geocoder.GeocodeAsync("London", cancellationToken: TestContext.Current.CancellationToken);
+		await geocoder.GeocodeAsync(new GeocodeRequest("London", null), TestContext.Current.CancellationToken);
 
 		handler.LastRequestUri!.Query.Should().Contain("limit=1");
 	}
@@ -155,7 +155,7 @@ public class PhotonGeocoderTests
 		using var http = new HttpClient(handler) { BaseAddress = new Uri("https://photon.example/") };
 		var geocoder = new PhotonGeocoder(http);
 
-		await geocoder.ReverseAsync(new GeoPoint(-0.1278, 51.5074), "fr", TestContext.Current.CancellationToken);
+		await geocoder.ReverseAsync(new ReverseGeocodeRequest(new GeoPoint(-0.1278, 51.5074), "fr"), TestContext.Current.CancellationToken);
 
 		handler.LastRequestUri!.Query.Should().Contain("lang=fr");
 	}
