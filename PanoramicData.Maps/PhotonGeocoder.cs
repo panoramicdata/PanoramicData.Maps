@@ -32,19 +32,19 @@ public sealed class PhotonGeocoder : IGeocoder
 		// does not rank a tiny same-spelling place above the country (issue #4).
 		var effective = Countries.ResolveName(query) ?? query;
 
-		var response = await _api.SearchAsync(effective, 1, Language(language), cancellationToken).ConfigureAwait(false);
+		var response = await _api.SearchAsync(effective, 1, NormaliseLanguage(language), cancellationToken).ConfigureAwait(false);
 		return FirstFeature(response);
 	}
 
 	/// <inheritdoc />
 	public async Task<GeocodeResult?> ReverseAsync(GeoPoint point, string? language = null, CancellationToken cancellationToken = default)
 	{
-		var response = await _api.ReverseAsync(point.Longitude, point.Latitude, Language(language), cancellationToken).ConfigureAwait(false);
+		var response = await _api.ReverseAsync(point.Longitude, point.Latitude, NormaliseLanguage(language), cancellationToken).ConfigureAwait(false);
 		return FirstFeature(response);
 	}
 
 	/// <summary>Normalises a language to null when blank, so Refit omits the parameter entirely.</summary>
-	private static string? Language(string? language)
+	private static string? NormaliseLanguage(string? language)
 		=> string.IsNullOrWhiteSpace(language) ? null : language.Trim();
 
 	/// <summary>

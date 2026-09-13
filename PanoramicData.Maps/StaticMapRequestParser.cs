@@ -13,6 +13,9 @@ namespace PanoramicData.Maps;
 /// </summary>
 public static class StaticMapRequestParser
 {
+	/// <summary>The separators accepted between the two halves of <c>size=WxH</c>.</summary>
+	private static readonly char[] SizeSeparators = ['x', 'X'];
+
 	/// <summary>
 	/// Attempts to parse a query into a <see cref="MapRequest"/>.
 	/// </summary>
@@ -486,7 +489,11 @@ public static class StaticMapRequestParser
 			return;
 		}
 
-		var parts = size.Split(['x', 'X']);
+		// Bound to Split(char[], StringSplitOptions) explicitly. The params overload reads as though it
+		// might be one of the several near-identical ones - Split(char, int, StringSplitOptions) or
+		// Split(string, StringSplitOptions) - and which one a reader assumes changes what they think the
+		// arguments mean.
+		var parts = size.Split(SizeSeparators, StringSplitOptions.None);
 		if (parts.Length == 2 && int.TryParse(parts[0], out var sw) && int.TryParse(parts[1], out var sh))
 		{
 			w = sw;

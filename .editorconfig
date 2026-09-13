@@ -267,9 +267,13 @@ dotnet_diagnostic.IDE0055.severity = error
 dotnet_diagnostic.SYSLIB1045.severity = error
 
 #### Sonar rules deliberately not applied ####
-# Codacy reports these against this repository. Each is suppressed here rather than in the Codacy UI
-# so the reason travels with the code and survives a project being re-created. Anything not listed
-# below is expected to be fixed, not silenced.
+# Codacy reports these against this repository, and the reason each one is wrong for this code is
+# recorded below. Anything not listed here is expected to be fixed, not silenced.
+#
+# NOTE: these entries govern local and IDE analysis only. Codacy's own SonarCSharp tool does not read
+# .editorconfig severities - a scan taken after these lines were added reported all twenty-four
+# findings unchanged - so silencing them on Codacy additionally requires disabling the patterns in the
+# project's Code Patterns settings. The rationale is kept here so that whoever does so has it to hand.
 
 # S2360: Use the overloading mechanism instead of the optional parameters.
 # Every hit is 'CancellationToken cancellationToken = default' or 'string? language = null' on public
