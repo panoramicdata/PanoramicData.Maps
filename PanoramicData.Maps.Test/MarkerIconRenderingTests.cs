@@ -144,6 +144,9 @@ public class MarkerIconRenderingTests
 		logger.Entries.Should().Contain(e => e.Level == LogLevel.Warning && e.Message.Contains("no_such_icon", StringComparison.Ordinal));
 	}
 
+	// Draws label text, which needs an installed system font. The CI runner image has none, so
+	// SkiaSharp falls back to an empty typeface and the label is (correctly) invisible there.
+	[Trait("Category", "RequiresSystemFonts")]
 	[Fact]
 	public async Task IconWithALabel_DrawsBoth()
 	{

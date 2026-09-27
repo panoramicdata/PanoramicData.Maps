@@ -3,6 +3,7 @@
 
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
+		<UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<OutputType>Exe</OutputType>
 		<IsPackable>false</IsPackable>
@@ -16,6 +17,14 @@
 		<PackageReference Include="xunit.v3" />
 		<PackageReference Include="xunit.runner.visualstudio" />
 		<PackageReference Include="bunit" />
+		<!--
+			The library ships SkiaSharp.NativeAssets.Linux, whose libSkiaSharp links against libfontconfig.
+			The CI runner image (ghcr.io/actions/actions-runner) has no fontconfig and its non-root runner
+			cannot apt-get it, so every rendering test failed there with DllNotFoundException. The tests
+			swap in the self-contained NoDependencies build instead; consumers of the package are unaffected.
+		-->
+		<PackageReference Include="SkiaSharp.NativeAssets.Linux" ExcludeAssets="all" />
+		<PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
 	<PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" PrivateAssets="all" /></ItemGroup>
 
 	<ItemGroup>
