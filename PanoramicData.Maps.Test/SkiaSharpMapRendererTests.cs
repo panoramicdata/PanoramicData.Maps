@@ -90,6 +90,9 @@ public class SkiaSharpMapRendererTests
 		foundRed.Should().BeTrue("the red marker should have been drawn");
 	}
 
+	// Draws label text, which needs an installed system font. The CI runner image has none, so
+	// SkiaSharp falls back to an empty typeface and the label is (correctly) invisible there.
+	[Trait("Category", "RequiresSystemFonts")]
 	[Fact]
 	public async Task RenderAsync_DrawsMarkerLabel()
 	{
