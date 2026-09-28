@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetTopologySuite.IO.VectorTiles.Mapbox;
@@ -29,6 +30,15 @@ public sealed class SkiaSharpMapRenderer(
 	private readonly ILogger<SkiaSharpMapRenderer> _logger = logger;
 	private readonly SpriteSheetProvider? _spriteSheetProvider = spriteSheetProvider;
 	private readonly MapboxTileReader _reader = new();
+	private readonly SKTypeface? _typeface = LoadTypeface(options.Value.FontPath, logger);
+
+	/// <summary>
+	/// Typefaces loaded from <see cref="MapsOptions.FontPath"/>, keyed by full path. The renderer is
+	/// created per request through a typed <see cref="HttpClient"/>, so without this every render would
+	/// re-read the font file and repeat any warning about it. A typeface is immutable and thread-safe, so
+	/// one instance per file serves the whole process. A null value records a file that could not be loaded.
+	/// </summary>
+	private static readonly ConcurrentDictionary<string, SKTypeface?> LoadedTypefaces = new(StringComparer.Ordinal);
 
 	/// <summary>The land fill, from the reference style's <c>earth</c> layer.</summary>
 	private static readonly SKColor EarthColor = new(0xE2, 0xDF, 0xDA);
@@ -86,9 +96,9 @@ public sealed class SkiaSharpMapRenderer(
 		}
 
 		MapOverlays.DrawRegions(canvas, request, viewport);
-		MapPlaceLabels.Draw(canvas, labels, scale);
-		MapOverlays.Draw(canvas, request, viewport, _logger, sprites);
-		MapOverlays.DrawAttribution(canvas, width, height, scale);
+		MapPlaceLabels.Draw(canvas, labels, scale, _typeface);
+		MapOverlays.Draw(canvas, request, viewport, _logger, sprites, _typeface);
+		MapOverlays.DrawAttribution(canvas, width, height, scale, _typeface);
 
 		using var image = surface.Snapshot();
 		var isPng = request.Format == MapImageFormat.Png;
@@ -273,6 +283,32 @@ public sealed class SkiaSharpMapRenderer(
 			using var p = new SKPaint { Color = s, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = paint.StrokeWidth, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round };
 			canvas.DrawPath(path, p);
 		}
+	}
+
+	/// <summary>
+	/// Loads the typeface named by <see cref="MapsOptions.FontPath"/>, once per file for the process.
+	/// Returns <see langword="null"/> - meaning SkiaSharp's default typeface - when no path is configured
+	/// or the file cannot be loaded; the latter is logged, because on a host with no system fonts the
+	/// default typeface draws no text at all.
+	/// </summary>
+	private static SKTypeface? LoadTypeface(string? fontPath, ILogger logger)
+	{
+		if (string.IsNullOrWhiteSpace(fontPath))
+		{
+			return null;
+		}
+
+		var fullPath = Path.GetFullPath(fontPath);
+		return LoadedTypefaces.GetOrAdd(fullPath, path =>
+		{
+			var typeface = File.Exists(path) ? SKTypeface.FromFile(path) : null;
+			if (typeface is null)
+			{
+				logger.LogWarning("Font file {FontPath} could not be loaded; map text is drawn with the default typeface instead.", path);
+			}
+
+			return typeface;
+		});
 	}
 
 	private static string TileUrl(string styleUrl, int z, int x, int y)

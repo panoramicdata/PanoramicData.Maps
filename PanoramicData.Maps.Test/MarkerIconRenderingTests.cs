@@ -78,7 +78,7 @@ public class MarkerIconRenderingTests
 	private static SkiaSharpMapRenderer CreateRenderer(ILogger<SkiaSharpMapRenderer>? logger = null)
 	{
 		var http = new HttpClient(new SpriteAndNoTilesHandler());
-		var options = Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json" });
+		var options = Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular });
 		var sprites = new SpriteSheetProvider(http, NullLogger<SpriteSheetProvider>.Instance);
 		return new SkiaSharpMapRenderer(http, options, logger ?? new CapturingLogger(), sprites);
 	}
@@ -144,9 +144,6 @@ public class MarkerIconRenderingTests
 		logger.Entries.Should().Contain(e => e.Level == LogLevel.Warning && e.Message.Contains("no_such_icon", StringComparison.Ordinal));
 	}
 
-	// Draws label text, which needs an installed system font. The CI runner image has none, so
-	// SkiaSharp falls back to an empty typeface and the label is (correctly) invisible there.
-	[Trait("Category", "RequiresSystemFonts")]
 	[Fact]
 	public async Task IconWithALabel_DrawsBoth()
 	{
@@ -176,7 +173,7 @@ public class MarkerIconRenderingTests
 		var http = new HttpClient(new SpriteAndNoTilesHandler());
 		var renderer = new SkiaSharpMapRenderer(
 			http,
-			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json" }),
+			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular }),
 			NullLogger<SkiaSharpMapRenderer>.Instance);
 
 		var image = await renderer.RenderAsync(Request("cafe"), TestContext.Current.CancellationToken);

@@ -23,7 +23,7 @@ public class MarkerRenderingTests
 	private static SkiaSharpMapRenderer CreateRenderer()
 		=> new(
 			new HttpClient(new NoTilesHandler()),
-			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json" }),
+			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular }),
 			NullLogger<SkiaSharpMapRenderer>.Instance);
 
 	private static bool IsMarkerRed(SKColor px) => px.Red > 180 && px.Green < 80 && px.Blue < 80;

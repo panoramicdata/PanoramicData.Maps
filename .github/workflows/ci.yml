@@ -74,9 +74,8 @@ jobs:
     # than through `dotnet test`. On Linux the executable has no .exe extension.
     # coverage.config ports coverlet's generated-code exclusions so figures stay
     # comparable across the estate.
-    # The two marker-label tests are excluded because they need an installed system
-    # font to draw text and this runner image has none. Everything else, including every
-    # other SkiaSharp rendering test, runs here.
+    # The runner image has no system fonts, so the tests draw text with the Liberation Sans
+    # font they ship (PanoramicData.Maps.Test/TestData/Fonts) and nothing is filtered out.
     - name: Run tests with coverage
       run: >-
         ./PanoramicData.Maps.Test/bin/Debug/net10.0/PanoramicData.Maps.Test
@@ -84,7 +83,6 @@ jobs:
         --coverage-settings coverage.config
         --coverage-output-format cobertura
         --coverage-output coverage.cobertura.xml
-        --filter "Category!=RequiresSystemFonts"
 
     # continue-on-error: a Codacy outage must not turn a passing test run red. The
     # trade-off is that an expired or missing project token fails silently, so

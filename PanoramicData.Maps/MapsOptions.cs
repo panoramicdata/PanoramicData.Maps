@@ -56,6 +56,15 @@ public sealed class MapsOptions
 	/// </summary>
 	public IDictionary<string, string> Styles { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+	/// <summary>
+	/// Optional path to a TrueType or OpenType font file used for all text the renderer draws: place
+	/// names, marker labels and the attribution. When unset, SkiaSharp's default typeface is used, which
+	/// comes from the host's installed fonts - so on a host with none, no text is drawn at all. Setting
+	/// this makes text rendering independent of the host. A file that cannot be loaded is logged as a
+	/// warning and the default typeface is used instead.
+	/// </summary>
+	public string? FontPath { get; set; }
+
 	/// <summary>Maximum permitted image width in CSS pixels.</summary>
 	public int MaxWidth { get; set; } = 2048;
 

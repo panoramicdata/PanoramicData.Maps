@@ -160,6 +160,7 @@ app.MapGet("/api/maps/staticmap", async (HttpRequest request, IHttpClientFactory
 | `Maps__PhotonBaseUrl` | `https://photon.panoramicdata.com` | Photon geocoder base URL. |
 | `Maps__TilesStyleUrl` | `https://tiles.panoramicdata.com/style.json` | MapLibre style JSON from the tile service. |
 | `Maps__SpriteUrl` | — | Sprite base URL for named marker icons, without `.json`/`.png`. Discovered from the style when unset. |
+| `Maps__FontPath` | — | TrueType/OpenType font file for all map text. Unset uses the host's default font; on a host with no fonts, no text is drawn. |
 | `Maps__RequireApiKey` | `false` | When `true`, `/v1/*` requires an API key (`X-Api-Key` header or `?key=`). |
 | `Maps__ApiKeys__0` … | — | Accepted API keys. |
 | `Maps__MaxWidth` / `MaxHeight` / `MaxScale` | 2048 / 2048 / 2 | Output caps. |
