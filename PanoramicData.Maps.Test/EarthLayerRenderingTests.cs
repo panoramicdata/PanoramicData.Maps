@@ -55,7 +55,7 @@ public class EarthLayerRenderingTests
 	private static SkiaSharpMapRenderer CreateRenderer(HttpMessageHandler handler, ILogger<SkiaSharpMapRenderer>? logger = null)
 		=> new(
 			new HttpClient(handler),
-			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json" }),
+			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular }),
 			logger ?? new CapturingLogger());
 
 	/// <summary>

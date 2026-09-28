@@ -76,12 +76,7 @@ public class MarkerIconRenderingTests
 	}
 
 	private static SkiaSharpMapRenderer CreateRenderer(ILogger<SkiaSharpMapRenderer>? logger = null)
-	{
-		var http = new HttpClient(new SpriteAndNoTilesHandler());
-		var options = Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json" });
-		var sprites = new SpriteSheetProvider(http, NullLogger<SpriteSheetProvider>.Instance);
-		return new SkiaSharpMapRenderer(http, options, logger ?? new CapturingLogger(), sprites);
-	}
+		=> CreateRendererWithFont(TestFonts.SansRegular, logger ?? new CapturingLogger());
 
 	private static MapRequest Request(string? icon, string? label = null) => new()
 	{
@@ -144,9 +139,6 @@ public class MarkerIconRenderingTests
 		logger.Entries.Should().Contain(e => e.Level == LogLevel.Warning && e.Message.Contains("no_such_icon", StringComparison.Ordinal));
 	}
 
-	// Draws label text, which needs an installed system font. The CI runner image has none, so
-	// SkiaSharp falls back to an empty typeface and the label is (correctly) invisible there.
-	[Trait("Category", "RequiresSystemFonts")]
 	[Fact]
 	public async Task IconWithALabel_DrawsBoth()
 	{
@@ -176,12 +168,48 @@ public class MarkerIconRenderingTests
 		var http = new HttpClient(new SpriteAndNoTilesHandler());
 		var renderer = new SkiaSharpMapRenderer(
 			http,
-			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json" }),
+			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular }),
 			NullLogger<SkiaSharpMapRenderer>.Instance);
 
 		var image = await renderer.RenderAsync(Request("cafe"), TestContext.Current.CancellationToken);
 
 		using var bmp = SKBitmap.Decode(image.Bytes);
 		ContainsColor(bmp, PinRed).Should().BeTrue();
+	}
+
+	[Fact]
+	public async Task FontPathThatCannotBeLoaded_FallsBackToTheDefaultTypefaceAndSaysSo()
+	{
+		// A unique path, so the process-wide typeface cache cannot already hold an entry for it.
+		var missingFont = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ttf");
+		var logger = new CapturingLogger();
+
+		var image = await CreateRendererWithFont(missingFont, logger).RenderAsync(Request("cafe", "Kiosk"), TestContext.Current.CancellationToken);
+
+		using var bmp = SKBitmap.Decode(image.Bytes);
+		ContainsColor(bmp, IconMagenta).Should().BeTrue("the map must still be drawn");
+		logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning && e.Message.Contains(missingFont, StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void FontPath_IsLoadedOncePerProcess_SoAnUnloadableFileIsReportedOnce()
+	{
+		// The renderer is created per request, so the second renderer must reuse the first one's result.
+		var missingFont = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ttf");
+		var first = new CapturingLogger();
+		var second = new CapturingLogger();
+
+		_ = CreateRendererWithFont(missingFont, first);
+		_ = CreateRendererWithFont(missingFont, second);
+
+		first.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning);
+		second.Entries.Should().BeEmpty();
+	}
+
+	private static SkiaSharpMapRenderer CreateRendererWithFont(string fontPath, ILogger<SkiaSharpMapRenderer> logger)
+	{
+		var http = new HttpClient(new SpriteAndNoTilesHandler());
+		var options = Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = fontPath });
+		return new SkiaSharpMapRenderer(http, options, logger, new SpriteSheetProvider(http, NullLogger<SpriteSheetProvider>.Instance));
 	}
 }

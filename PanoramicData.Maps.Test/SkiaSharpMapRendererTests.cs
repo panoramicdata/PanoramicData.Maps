@@ -21,7 +21,7 @@ public class SkiaSharpMapRendererTests
 	private static SkiaSharpMapRenderer CreateRenderer()
 	{
 		var http = new HttpClient(new NoTilesHandler());
-		var options = Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json" });
+		var options = Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular });
 		return new SkiaSharpMapRenderer(http, options, NullLogger<SkiaSharpMapRenderer>.Instance);
 	}
 
@@ -90,9 +90,6 @@ public class SkiaSharpMapRendererTests
 		foundRed.Should().BeTrue("the red marker should have been drawn");
 	}
 
-	// Draws label text, which needs an installed system font. The CI runner image has none, so
-	// SkiaSharp falls back to an empty typeface and the label is (correctly) invisible there.
-	[Trait("Category", "RequiresSystemFonts")]
 	[Fact]
 	public async Task RenderAsync_DrawsMarkerLabel()
 	{

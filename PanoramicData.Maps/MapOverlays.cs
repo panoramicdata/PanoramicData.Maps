@@ -48,7 +48,7 @@ internal static class MapOverlays
 	}
 
 	/// <summary>Draws the caller's polygons, paths and markers, in that order.</summary>
-	public static void Draw(SKCanvas canvas, MapRequest request, Viewport viewport, ILogger logger, SpriteSheet? sprites)
+	public static void Draw(SKCanvas canvas, MapRequest request, Viewport viewport, ILogger logger, SpriteSheet? sprites, SKTypeface? typeface)
 	{
 		var scale = viewport.Scale;
 
@@ -68,10 +68,10 @@ internal static class MapOverlays
 			canvas.DrawPath(path, p);
 		}
 
-		DrawMarkers(canvas, request, viewport, logger, sprites);
+		DrawMarkers(canvas, request, viewport, logger, sprites, typeface);
 	}
 
-	private static void DrawMarkers(SKCanvas canvas, MapRequest request, Viewport viewport, ILogger logger, SpriteSheet? sprites)
+	private static void DrawMarkers(SKCanvas canvas, MapRequest request, Viewport viewport, ILogger logger, SpriteSheet? sprites, SKTypeface? typeface)
 	{
 		var fallbackMarker = new SKColor(0xDC, 0x26, 0x26);
 		foreach (var m in request.Markers)
@@ -84,7 +84,7 @@ internal static class MapOverlays
 			{
 				if (sprites is not null && sprites.TryGet(m.Icon, out var icon))
 				{
-					DrawSpriteMarker(canvas, sprites, icon, pt, metrics, m.Label);
+					DrawSpriteMarker(canvas, sprites, icon, pt, metrics, m.Label, typeface);
 					continue;
 				}
 
@@ -96,7 +96,7 @@ internal static class MapOverlays
 			}
 
 			DrawPin(canvas, pt, metrics, markerColor);
-			DrawMarkerLabel(canvas, m.Label, markerColor, pt.X, metrics.HeadCenterY(pt.Y), metrics);
+			DrawMarkerLabel(canvas, m.Label, markerColor, pt.X, metrics.HeadCenterY(pt.Y), metrics, typeface);
 		}
 	}
 
@@ -124,7 +124,7 @@ internal static class MapOverlays
 	/// glyphs rather than pins, so the coordinate is their centre - the same placement a MapLibre client
 	/// gives them. A label, if supplied, goes underneath with a halo so it does not obscure the glyph.
 	/// </summary>
-	private static void DrawSpriteMarker(SKCanvas canvas, SpriteSheet sprites, SpriteIcon icon, SKPoint anchor, MarkerMetrics metrics, string? label)
+	private static void DrawSpriteMarker(SKCanvas canvas, SpriteSheet sprites, SpriteIcon icon, SKPoint anchor, MarkerMetrics metrics, string? label, SKTypeface? typeface)
 	{
 		var width = icon.LogicalWidth * metrics.ScaleFactor;
 		var height = icon.LogicalHeight * metrics.ScaleFactor;
@@ -138,7 +138,7 @@ internal static class MapOverlays
 			return;
 		}
 
-		using var font = new SKFont { Size = Math.Max(9f, height * 0.5f), Embolden = true };
+		using var font = new SKFont { Typeface = typeface, Size = Math.Max(9f, height * 0.5f), Embolden = true };
 		using var halo = new SKPaint
 		{
 			Color = new SKColor(0xFF, 0xFF, 0xFF, 0xE0),
@@ -193,7 +193,7 @@ internal static class MapOverlays
 	/// Google suppresses labels on its two smallest sizes; this renderer draws them at every size on
 	/// purpose, so a small marker still carries its identity in a report.
 	/// </summary>
-	private static void DrawMarkerLabel(SKCanvas canvas, string? label, SKColor markerColor, float cx, float headCenterY, MarkerMetrics metrics)
+	private static void DrawMarkerLabel(SKCanvas canvas, string? label, SKColor markerColor, float cx, float headCenterY, MarkerMetrics metrics, SKTypeface? typeface)
 	{
 		if (string.IsNullOrWhiteSpace(label))
 		{
@@ -205,7 +205,7 @@ internal static class MapOverlays
 		var textColor = luminance > 150 ? SKColors.Black : SKColors.White;
 
 		var text = label.Trim();
-		using var font = new SKFont { Size = metrics.LabelFontSize, Embolden = true };
+		using var font = new SKFont { Typeface = typeface, Size = metrics.LabelFontSize, Embolden = true };
 
 		// A multi-character label would otherwise overflow the head; shrink it to fit the way a map pin
 		// has to, rather than letting it spill over the outline.
@@ -221,10 +221,10 @@ internal static class MapOverlays
 	}
 
 	/// <summary>Draws the OpenStreetMap attribution the tile data's licence requires.</summary>
-	public static void DrawAttribution(SKCanvas canvas, int width, int height, int scale)
+	public static void DrawAttribution(SKCanvas canvas, int width, int height, int scale, SKTypeface? typeface)
 	{
 		const string text = "© OpenStreetMap";
-		using var font = new SKFont { Size = 11f * scale };
+		using var font = new SKFont { Typeface = typeface, Size = 11f * scale };
 		using var bg = new SKPaint { Color = new SKColor(255, 255, 255, 190), IsAntialias = true };
 		using var fg = new SKPaint { Color = new SKColor(0x33, 0x33, 0x33), IsAntialias = true };
 		var w = font.MeasureText(text);

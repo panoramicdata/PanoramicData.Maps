@@ -46,7 +46,7 @@ public class RealTileRenderingTests
 	private static SkiaSharpMapRenderer CreateRenderer(int zoom, int x, int y)
 		=> new(
 			new HttpClient(new CapturedTileHandler(zoom, x, y)),
-			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json" }),
+			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular }),
 			NullLogger<SkiaSharpMapRenderer>.Instance);
 
 	private static bool ContainsColor(SKBitmap bitmap, SKColor color, int tolerance = 6)

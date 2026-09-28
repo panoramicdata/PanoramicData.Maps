@@ -45,7 +45,7 @@ internal static class MapPlaceLabels
 	}
 
 	/// <summary>Draws the collected names, most important first, skipping any that would overlap.</summary>
-	public static void Draw(SKCanvas canvas, List<LabelCandidate> labels, int scale)
+	public static void Draw(SKCanvas canvas, List<LabelCandidate> labels, int scale, SKTypeface? typeface)
 	{
 		if (labels.Count == 0)
 		{
@@ -59,7 +59,7 @@ internal static class MapPlaceLabels
 
 		foreach (var label in labels.OrderByDescending(l => l.Importance).ThenByDescending(l => l.Size))
 		{
-			using var font = new SKFont { Size = label.Size, Embolden = label.Bold };
+			using var font = new SKFont { Typeface = typeface, Size = label.Size, Embolden = label.Bold };
 			var textWidth = font.MeasureText(label.Text);
 			var half = textWidth / 2f;
 			var rect = new SKRect(label.X - half - pad, label.Y - label.Size / 2f - pad, label.X + half + pad, label.Y + label.Size / 2f + pad);
