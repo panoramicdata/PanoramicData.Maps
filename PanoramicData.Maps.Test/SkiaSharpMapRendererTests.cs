@@ -1,6 +1,5 @@
 using System.Net;
 using AwesomeAssertions;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using PanoramicData.Maps;
@@ -113,51 +112,6 @@ public class SkiaSharpMapRendererTests
 
 		// Drawing the label must change the output; a yellow pin gets dark ("A") pixels it lacked before.
 		withLabel.Bytes.SequenceEqual(plain.Bytes).Should().BeFalse("the marker label should have been rendered");
-	}
-
-	[Fact]
-	public async Task RenderAsync_WithAFontPathThatCannotBeLoaded_WarnsAndStillRenders()
-	{
-		// A unique path, so the process-wide typeface cache cannot already hold an entry for it.
-		var missingFont = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ttf");
-		var logger = new CapturingLogger();
-		var renderer = new SkiaSharpMapRenderer(
-			new HttpClient(new NoTilesHandler()),
-			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = missingFont }),
-			logger);
-
-		var image = await renderer.RenderAsync(new MapRequest { Center = new GeoPoint(0, 0), Zoom = 2, Width = 64, Height = 64 }, TestContext.Current.CancellationToken);
-
-		image.ContentType.Should().Be("image/png");
-		logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning && e.Message.Contains(missingFont, StringComparison.Ordinal));
-	}
-
-	[Fact]
-	public void Constructor_WithTheSameUnloadableFontPath_WarnsOnlyOnce()
-	{
-		// The first renderer to name a file loads it; later renderers reuse the result without logging again.
-		var missingFont = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ttf");
-		var options = Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = missingFont });
-		var first = new CapturingLogger();
-		var second = new CapturingLogger();
-
-		_ = new SkiaSharpMapRenderer(new HttpClient(new NoTilesHandler()), options, first);
-		_ = new SkiaSharpMapRenderer(new HttpClient(new NoTilesHandler()), options, second);
-
-		first.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning);
-		second.Entries.Should().BeEmpty();
-	}
-
-	private sealed class CapturingLogger : ILogger<SkiaSharpMapRenderer>
-	{
-		public List<(LogLevel Level, string Message)> Entries { get; } = [];
-
-		public IDisposable? BeginScope<TState>(TState _) where TState : notnull => null;
-
-		public bool IsEnabled(LogLevel _) => true;
-
-		public void Log<TState>(LogLevel logLevel, EventId _, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-			=> Entries.Add((logLevel, formatter(state, exception)));
 	}
 
 	[Fact]
