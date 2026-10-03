@@ -14,7 +14,7 @@
     <!-- Typed HTTP client for the Photon geocoding API -->
     <PackageVersion Include="Refit" Version="16.3.0" />
     <!-- Rendering (native MVT -> SkiaSharp; no headless browser) -->
-    <PackageVersion Include="SkiaSharp" Version="4.153.0" />
+    <PackageVersion Include="SkiaSharp" Version="4.153.1" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.153.0" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.0" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
