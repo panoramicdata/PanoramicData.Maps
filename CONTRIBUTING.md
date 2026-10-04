@@ -1,36 +1,32 @@
-# Contributing to PanoramicData.Maps
+# Contributing
 
-Thanks for your interest in contributing!
+Thank you for your interest in contributing to this project!
 
-## Getting started
+## How to Contribute
 
-```bash
-dotnet build
-dotnet test
-```
+1. **Fork** the repository
+2. **Create a branch** for your feature or fix (`git checkout -b feature/my-feature`)
+3. **Make your changes** following the coding standards below
+4. **Write or update tests** as appropriate
+5. **Ensure the build passes** with zero errors, zero warnings, and zero messages
+6. **Submit a Pull Request** against the `main` branch
 
-The unit tests are fast and require no external services (the renderer tests use a stub tile source).
+## Coding Standards
 
-## Ground rules
+- All public members must have XML documentation comments
+- Use `System.Text.Json` — do not introduce `Newtonsoft.Json`
+- Use Refit for HTTP client interfaces
+- Use file-scoped namespaces
+- Use the `required` keyword for DTO properties where appropriate
+- Ensure `TreatWarningsAsErrors` remains enabled
+- All code must compile with zero diagnostics
 
-- **Target framework**: .NET 10 (`net10.0`); the SDK is pinned in `global.json`.
-- **Central Package Management**: add/adjust versions in `Directory.Packages.props`; never put a
-  `Version` on a `<PackageReference>`.
-- **Warnings are errors** (`TreatWarningsAsErrors`), nullable is enabled, and XML doc comments are
-  required on public members. Keep the build clean.
-- **Style**: tabs (4-wide), file-scoped namespaces — enforced by `.editorconfig`. `ConfigureAwait`
-  is required in the library (CA2007); the ASP.NET server project opts out of CA2007.
-- **Tests**: xUnit v3 with AwesomeAssertions. Add tests for new behaviour; use
-  `TestContext.Current.CancellationToken` in async tests.
-- **Rendering fidelity**: prefer changes that improve MapLibre-style fidelity while keeping the
-  renderer native (no headless browser / no Node).
+## Testing
 
-## Pull requests
+- Use xUnit v3 for all tests
+- Use AwesomeAssertions for fluent assertions
+- Ensure all existing tests pass before submitting a PR
 
-1. Branch from `main`.
-2. Keep the build and tests green (`dotnet build && dotnet test`).
-3. Describe the change and, for rendering changes, attach a before/after image.
+## License
 
-## Reporting issues
-
-Use GitHub issues for bugs and feature requests. For security issues, see [SECURITY.md](SECURITY.md).
+By contributing, you agree that your contributions will be licensed under the MIT License.
