@@ -45,7 +45,7 @@ public class SpriteSheetTests
 
 		public string SpriteUrlInStyle { get; init; } = "https://tiles.example/sprites/v4/light";
 
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
 		{
 			var url = request.RequestUri!.ToString();
 			if (url.EndsWith("style.json", StringComparison.Ordinal))
@@ -142,7 +142,7 @@ public class SpriteSheetTests
 
 	private sealed class BrokenHandler : HttpMessageHandler
 	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage _, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
 			=> Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
 	}
 

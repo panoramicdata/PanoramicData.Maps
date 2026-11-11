@@ -22,7 +22,7 @@ public class EarthLayerRenderingTests
 
 	private sealed class CapturedTileHandler(int zoom, int x, int y) : HttpMessageHandler
 	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
 		{
 			if (!request.RequestUri!.AbsolutePath.EndsWith($"/planet/{zoom}/{x}/{y}.mvt", StringComparison.Ordinal))
 			{

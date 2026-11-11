@@ -16,7 +16,7 @@ public class MarkerRenderingTests
 {
 	private sealed class NoTilesHandler : HttpMessageHandler
 	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage _, CancellationToken cancellationToken)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
 			=> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
 	}
 
