@@ -1,58 +1,49 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<NeutralResourcesLanguage>en</NeutralResourcesLanguage>
-
-		<!-- NuGet package metadata -->
-		<PackageId>PanoramicData.Maps</PackageId>
-		<Owners>Panoramic Data Limited</Owners>
-		<PackageProjectUrl>https://github.com/panoramicdata/PanoramicData.Maps</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/panoramicdata/PanoramicData.Maps</RepositoryUrl>
-		<RepositoryType>git</RepositoryType>
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageIcon>Logo.png</PackageIcon>
-		<Description>Static map image rendering (markers, icons, lines, polygons) and geocoding for a self-hosted Photon + Protomaps tile stack. Core models and abstractions.</Description>
-		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-		<IncludeSymbols>true</IncludeSymbols>
-		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<PackageTags>maps;staticmap;geocoding;photon;protomaps;maplibre;openstreetmap;PanoramicData</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-	</PropertyGroup>
-
-	<ItemGroup>
-		<ProjectReference Include="..\PanoramicData.Maps.Abstractions\PanoramicData.Maps.Abstractions.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Http" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Options" />
-		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
-		<PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
-		<PackageReference Include="Refit" />
-		<PackageReference Include="SkiaSharp" />
-		<PackageReference Include="SkiaSharp.NativeAssets.Linux" />
-		<PackageReference Include="NetTopologySuite" />
-		<PackageReference Include="NetTopologySuite.IO.VectorTiles" />
-		<PackageReference Include="NetTopologySuite.IO.VectorTiles.Mapbox" />
-		<PackageReference Include="NetTopologySuite.IO.GeoJSON" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<!-- Reference data embedded into the assembly: ISO 3166-1 country table (country-code
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NeutralResourcesLanguage>en</NeutralResourcesLanguage>
+    <!-- NuGet package metadata -->
+    <PackageId>PanoramicData.Maps</PackageId>
+    <Owners>Panoramic Data Limited</Owners>
+    <PackageProjectUrl>https://github.com/panoramicdata/PanoramicData.Maps</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/panoramicdata/PanoramicData.Maps</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>Logo.png</PackageIcon>
+    <Description>Static map image rendering (markers, icons, lines, polygons) and geocoding for a self-hosted Photon + Protomaps tile stack. Core models and abstractions.</Description>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>maps;staticmap;geocoding;photon;protomaps;maplibre;openstreetmap;PanoramicData</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PanoramicData.Maps.Abstractions\PanoramicData.Maps.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+    <PackageReference Include="Refit" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+    <PackageReference Include="NetTopologySuite" />
+    <PackageReference Include="NetTopologySuite.IO.VectorTiles" />
+    <PackageReference Include="NetTopologySuite.IO.VectorTiles.Mapbox" />
+    <PackageReference Include="NetTopologySuite.IO.GeoJSON" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Reference data embedded into the assembly: ISO 3166-1 country table (country-code
 		     aliasing + region-code resolution) and Natural Earth admin-0 boundaries (public domain,
 		     1:110m) for named-region shading. -->
-		<EmbeddedResource Include="data\iso3166.txt" />
-		<EmbeddedResource Include="data\ne_110m_admin_0_countries.min.geojson" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<None Include="Logo.png" Pack="true" PackagePath="" />
-		<None Include="..\README.md" Link="README.md" Pack="true" PackagePath="" />
-	</ItemGroup>
-
+    <EmbeddedResource Include="data\iso3166.txt" />
+    <EmbeddedResource Include="data\ne_110m_admin_0_countries.min.geojson" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Logo.png" Pack="true" PackagePath="" />
+    <None Include="..\README.md" Link="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 </Project>
