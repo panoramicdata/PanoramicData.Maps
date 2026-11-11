@@ -78,7 +78,7 @@ jobs:
     # font they ship (PanoramicData.Maps.Test/TestData/Fonts) and nothing is filtered out.
     - name: Run tests with coverage
       run: >-
-        ./PanoramicData.Maps.Test/bin/Debug/net10.0/PanoramicData.Maps.Test
+        ./PanoramicData.Maps.Test/bin/Debug/net11.0/PanoramicData.Maps.Test
         --coverage
         --coverage-settings ${{ github.workspace }}/coverage.config
         --coverage-output-format cobertura
@@ -92,7 +92,7 @@ jobs:
       uses: codacy/codacy-coverage-reporter-action@v1
       with:
         project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
-        coverage-reports: PanoramicData.Maps.Test/bin/Debug/net10.0/TestResults/coverage.cobertura.xml
+        coverage-reports: PanoramicData.Maps.Test/bin/Debug/net11.0/TestResults/coverage.cobertura.xml
 
     - name: Upload coverage artifact
       if: always()
@@ -100,7 +100,7 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: coverage
-        path: PanoramicData.Maps.Test/bin/Debug/net10.0/TestResults/coverage.cobertura.xml
+        path: PanoramicData.Maps.Test/bin/Debug/net11.0/TestResults/coverage.cobertura.xml
         retention-days: 7
 
   publish:
