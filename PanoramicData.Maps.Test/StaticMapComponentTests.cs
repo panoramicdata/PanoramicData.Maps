@@ -14,13 +14,31 @@ public class StaticMapComponentTests : BunitContext
 {
 	private const string BaseUrl = "https://maps.example.com";
 
+	private IRenderedComponent<StaticMap> RenderMap(Action<ComponentParameterCollectionBuilder<StaticMap>> configure)
+		=> Render<StaticMap>(parameters =>
+		{
+			parameters.Add(p => p.BaseUrl, BaseUrl);
+			configure(parameters);
+		});
+
+	private IRenderedComponent<StaticMap> RenderAt(GeoPoint center, int zoom, Action<ComponentParameterCollectionBuilder<StaticMap>>? configure = null)
+		=> RenderMap(parameters =>
+		{
+			parameters.Add(p => p.Center, center).Add(p => p.Zoom, zoom);
+			configure?.Invoke(parameters);
+		});
+
+	private IRenderedComponent<StaticMap> RenderNamed(string location, int zoom, Action<ComponentParameterCollectionBuilder<StaticMap>>? configure = null)
+		=> RenderMap(parameters =>
+		{
+			parameters.Add(p => p.Location, location).Add(p => p.Zoom, zoom);
+			configure?.Invoke(parameters);
+		});
+
 	[Fact]
 	public void Renders_AnImageWhoseSourceComesFromTheSharedUrlBuilder()
 	{
-		var component = Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Center, new GeoPoint(-0.1278, 51.5074))
-			.Add(p => p.Zoom, 12));
+		var component = RenderAt(new GeoPoint(-0.1278, 51.5074), 12);
 
 		var img = component.Find("img");
 		var expected = StaticMapUrlBuilder.Build(BaseUrl, new MapRequest { Center = new GeoPoint(-0.1278, 51.5074), Zoom = 12 });
@@ -31,10 +49,7 @@ public class StaticMapComponentTests : BunitContext
 	[Fact]
 	public void Renders_NoScriptTagAtAll()
 	{
-		var component = Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Location, "London")
-			.Add(p => p.Zoom, 10));
+		var component = RenderNamed("London", 10);
 
 		component.Markup.Should().NotContain("<script", "a static map needs no JavaScript, and no JS means no interop lifetime hazards");
 	}
@@ -42,10 +57,7 @@ public class StaticMapComponentTests : BunitContext
 	[Fact]
 	public void Passes_SizeThroughToBothTheUrlAndTheImageElement()
 	{
-		var component = Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Center, new GeoPoint(0, 0))
-			.Add(p => p.Zoom, 4)
+		var component = RenderAt(new GeoPoint(0, 0), 4, parameters => parameters
 			.Add(p => p.Width, 640)
 			.Add(p => p.Height, 360));
 
@@ -58,10 +70,7 @@ public class StaticMapComponentTests : BunitContext
 	[Fact]
 	public void Scale_DoublesThePixelsWithoutChangingTheLayoutSize()
 	{
-		var component = Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Center, new GeoPoint(0, 0))
-			.Add(p => p.Zoom, 4)
+		var component = RenderAt(new GeoPoint(0, 0), 4, parameters => parameters
 			.Add(p => p.Width, 400)
 			.Add(p => p.Height, 300)
 			.Add(p => p.Scale, 2));
@@ -74,10 +83,7 @@ public class StaticMapComponentTests : BunitContext
 	[Fact]
 	public void Markers_AreWrittenIntoTheUrl()
 	{
-		var component = Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Center, new GeoPoint(-0.1278, 51.5074))
-			.Add(p => p.Zoom, 12)
+		var component = RenderAt(new GeoPoint(-0.1278, 51.5074), 12, parameters => parameters
 			.Add(p => p.Markers,
 			[
 				new MarkerSpec { Location = new GeoPoint(-0.1278, 51.5074), Color = "red", Label = "A" }
@@ -89,17 +95,11 @@ public class StaticMapComponentTests : BunitContext
 	[Fact]
 	public void Alt_DefaultsToSomethingUsefulAndCanBeOverridden()
 	{
-		var byDefault = Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Location, "Maidenhead")
-			.Add(p => p.Zoom, 13));
+		var byDefault = RenderNamed("Maidenhead", 13);
 
 		byDefault.Find("img").GetAttribute("alt").Should().Contain("Maidenhead", "the fallback should describe the map, not say 'image'");
 
-		var overridden = Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Location, "Maidenhead")
-			.Add(p => p.Zoom, 13)
+		var overridden = RenderNamed("Maidenhead", 13, parameters => parameters
 			.Add(p => p.Alt, "Site location"));
 
 		overridden.Find("img").GetAttribute("alt").Should().Be("Site location");
@@ -108,16 +108,10 @@ public class StaticMapComponentTests : BunitContext
 	[Fact]
 	public void Loading_IsLazyByDefaultAndCanBeMadeEager()
 	{
-		Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Center, new GeoPoint(0, 0))
-			.Add(p => p.Zoom, 2))
+		RenderAt(new GeoPoint(0, 0), 2)
 			.Find("img").GetAttribute("loading").Should().Be("lazy");
 
-		Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Center, new GeoPoint(0, 0))
-			.Add(p => p.Zoom, 2)
+		RenderAt(new GeoPoint(0, 0), 2, parameters => parameters
 			.Add(p => p.Lazy, false))
 			.Find("img").GetAttribute("loading").Should().BeNull();
 	}
@@ -125,10 +119,7 @@ public class StaticMapComponentTests : BunitContext
 	[Fact]
 	public void AdditionalAttributes_AreSplattedOntoTheImage()
 	{
-		var component = Render<StaticMap>(parameters => parameters
-			.Add(p => p.BaseUrl, BaseUrl)
-			.Add(p => p.Center, new GeoPoint(0, 0))
-			.Add(p => p.Zoom, 2)
+		var component = RenderAt(new GeoPoint(0, 0), 2, parameters => parameters
 			.AddUnmatched("class", "rounded shadow")
 			.AddUnmatched("data-testid", "site-map"));
 

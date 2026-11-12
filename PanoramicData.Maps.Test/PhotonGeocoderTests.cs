@@ -11,8 +11,9 @@ public class PhotonGeocoderTests
 	{
 		public Uri? LastRequestUri { get; private set; }
 
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			LastRequestUri = request.RequestUri;
 			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
 			{

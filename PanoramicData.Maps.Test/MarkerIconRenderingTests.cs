@@ -37,8 +37,9 @@ public class MarkerIconRenderingTests
 	/// <summary>404s every tile, serves the style and the sprite sheet.</summary>
 	private sealed class SpriteAndNoTilesHandler : HttpMessageHandler
 	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			var url = request.RequestUri!.ToString();
 
 			if (url.EndsWith("style.json", StringComparison.Ordinal))
@@ -63,18 +64,6 @@ public class MarkerIconRenderingTests
 			=> Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
 	}
 
-	private sealed class CapturingLogger : ILogger<SkiaSharpMapRenderer>
-	{
-		public List<(LogLevel Level, string Message)> Entries { get; } = [];
-
-		public IDisposable? BeginScope<TState>(TState _) where TState : notnull => null;
-
-		public bool IsEnabled(LogLevel _) => true;
-
-		public void Log<TState>(LogLevel logLevel, EventId _, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-			=> Entries.Add((logLevel, formatter(state, exception)));
-	}
-
 	private static SkiaSharpMapRenderer CreateRenderer(ILogger<SkiaSharpMapRenderer>? logger = null)
 		=> CreateRendererWithFont(TestFonts.SansRegular, logger ?? new CapturingLogger());
 
@@ -88,23 +77,7 @@ public class MarkerIconRenderingTests
 	};
 
 	private static bool ContainsColor(SKBitmap bitmap, SKColor color, int tolerance = 8)
-	{
-		for (var y = 0; y < bitmap.Height; y++)
-		{
-			for (var x = 0; x < bitmap.Width; x++)
-			{
-				var px = bitmap.GetPixel(x, y);
-				if (Math.Abs(px.Red - color.Red) <= tolerance
-					&& Math.Abs(px.Green - color.Green) <= tolerance
-					&& Math.Abs(px.Blue - color.Blue) <= tolerance)
-				{
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
+		=> PixelProbe.ContainsColor(bitmap, color, tolerance);
 
 	[Fact]
 	public async Task NamedIcon_IsDrawnInsteadOfThePin()

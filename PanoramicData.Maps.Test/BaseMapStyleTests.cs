@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using PanoramicData.Maps;
+using SkiaSharp;
 using Xunit;
 
 namespace PanoramicData.Maps.Test;
@@ -10,6 +10,12 @@ namespace PanoramicData.Maps.Test;
 /// </summary>
 public class BaseMapStyleTests
 {
+	private static void AssertRgb(SKColor? fill, byte r, byte g, byte b)
+	{
+		fill.Should().NotBeNull();
+		(fill!.Value.Red, fill.Value.Green, fill.Value.Blue).Should().Be((r, g, b));
+	}
+
 	[Theory]
 	[InlineData(0)]
 	[InlineData(4)]
@@ -19,10 +25,10 @@ public class BaseMapStyleTests
 	{
 		// Issue #10: a marine nature_reserve was painted land-green over the ocean at z4/z5.
 		// The reference style ramps fill-opacity from 0 at z6 to 1 at z11.
-		BaseMapStyle.FillFor("landuse", "nature_reserve", zoom).Should().BeNull();
-		BaseMapStyle.FillFor("landuse", "protected_area", zoom).Should().BeNull();
-		BaseMapStyle.FillFor("landuse", "national_park", zoom).Should().BeNull();
-		BaseMapStyle.FillFor("landuse", "park", zoom).Should().BeNull();
+		foreach (var kind in new[] { "nature_reserve", "protected_area", "national_park", "park" })
+		{
+			BaseMapStyle.FillFor("landuse", kind, zoom).Should().BeNull($"'{kind}' is not painted at zoom {zoom}");
+		}
 	}
 
 	[Fact]
@@ -56,10 +62,7 @@ public class BaseMapStyleTests
 	[InlineData("military", 0xC6, 0xDC, 0xDC)]
 	public void LanduseKinds_UseTheReferenceColours(string kind, byte r, byte g, byte b)
 	{
-		var fill = BaseMapStyle.FillFor("landuse", kind, 12);
-
-		fill.Should().NotBeNull();
-		(fill!.Value.Red, fill.Value.Green, fill.Value.Blue).Should().Be((r, g, b));
+		AssertRgb(BaseMapStyle.FillFor("landuse", kind, 12), r, g, b);
 	}
 
 	[Theory]
@@ -75,9 +78,8 @@ public class BaseMapStyleTests
 		foreach (var zoom in new double[] { 5, 12, 15 })
 		{
 			var fill = BaseMapStyle.FillFor("landuse", kind, zoom);
-			fill.Should().NotBeNull($"'{kind}' has a fill rule at zoom {zoom}");
-			(fill!.Value.Red, fill.Value.Green, fill.Value.Blue).Should().Be((r, g, b));
-			fill.Value.Alpha.Should().Be(255);
+			AssertRgb(fill, r, g, b);
+			fill!.Value.Alpha.Should().Be(255);
 		}
 	}
 
@@ -116,10 +118,7 @@ public class BaseMapStyleTests
 	[InlineData("forest", 196, 231, 210)]
 	public void LandcoverKinds_UseTheReferenceColours(string kind, byte r, byte g, byte b)
 	{
-		var fill = BaseMapStyle.FillFor("landcover", kind, 5);
-
-		fill.Should().NotBeNull();
-		(fill!.Value.Red, fill.Value.Green, fill.Value.Blue).Should().Be((r, g, b));
+		AssertRgb(BaseMapStyle.FillFor("landcover", kind, 5), r, g, b);
 	}
 
 	[Fact]

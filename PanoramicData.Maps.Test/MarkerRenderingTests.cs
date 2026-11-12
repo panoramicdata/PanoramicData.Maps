@@ -1,8 +1,4 @@
-﻿using System.Net;
-using AwesomeAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using PanoramicData.Maps;
+﻿using AwesomeAssertions;
 using SkiaSharp;
 using Xunit;
 
@@ -14,17 +10,8 @@ namespace PanoramicData.Maps.Test;
 /// </summary>
 public class MarkerRenderingTests
 {
-	private sealed class NoTilesHandler : HttpMessageHandler
-	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
-			=> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-	}
-
 	private static SkiaSharpMapRenderer CreateRenderer()
-		=> new(
-			new HttpClient(new NoTilesHandler()),
-			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular }),
-			NullLogger<SkiaSharpMapRenderer>.Instance);
+		=> TestRenderers.Create(new StatusOnlyHandler());
 
 	private static bool IsMarkerRed(SKColor px) => px.Red > 180 && px.Green < 80 && px.Blue < 80;
 

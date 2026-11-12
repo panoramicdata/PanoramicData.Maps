@@ -45,8 +45,9 @@ public class SpriteSheetTests
 
 		public string SpriteUrlInStyle { get; init; } = "https://tiles.example/sprites/v4/light";
 
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			var url = request.RequestUri!.ToString();
 			if (url.EndsWith("style.json", StringComparison.Ordinal))
 			{
@@ -140,17 +141,11 @@ public class SpriteSheetTests
 		sheet.TryGet("CAFE", out _).Should().BeTrue("callers should not have to match the sprite sheet's casing");
 	}
 
-	private sealed class BrokenHandler : HttpMessageHandler
-	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
-			=> Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
-	}
-
 	[Fact]
 	public async Task GetAsync_ReturnsNullWhenTheSpriteSheetIsUnavailable()
 	{
 		// A map must still render if the sprite sheet cannot be fetched; markers fall back to pins.
-		var sheet = await CreateProvider(new BrokenHandler()).GetAsync(new SpriteSheetRequest("https://tiles.example/style.json", null), TestContext.Current.CancellationToken);
+		var sheet = await CreateProvider(new StatusOnlyHandler(HttpStatusCode.InternalServerError)).GetAsync(new SpriteSheetRequest("https://tiles.example/style.json", null), TestContext.Current.CancellationToken);
 
 		sheet.Should().BeNull();
 	}

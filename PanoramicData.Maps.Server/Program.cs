@@ -103,19 +103,13 @@ var staticMap = async (HttpRequest req, IGeocoder geocoder, IMapRenderer rendere
 		return Results.BadRequest(new { error });
 	}
 
-	if (request.Center is null && !string.IsNullOrWhiteSpace(request.Location))
+	var (located, failure) = await ResolveLocationAsync(request, geocoder, ct);
+	if (failure is not null)
 	{
-		var geo = await geocoder.GeocodeAsync(new GeocodeRequest(request.Location!, options.DefaultLanguage), ct);
-		if (geo is null)
-		{
-			return Results.BadRequest(new { error = $"Could not geocode location '{request.Location}'." });
-		}
-
-		request = request with { Center = geo.Location };
+		return failure;
 	}
 
-	var image = await renderer.RenderAsync(request, ct);
-	return Results.File(image.Bytes, image.ContentType);
+	return await RenderFileAsync(located, renderer, ct);
 };
 
 app.MapGet("/staticmap", staticMap);
@@ -139,16 +133,10 @@ app.MapPost("/v1/staticmap", async (MapRequest request, IGeocoder geocoder, IMap
 		return Results.BadRequest(new { error = $"scale {request.Scale} exceeds the maximum of {options.MaxScale}" });
 	}
 
-	var resolved = request;
-	if (request.Center is null && !string.IsNullOrWhiteSpace(request.Location))
+	var (resolved, failure) = await ResolveLocationAsync(request, geocoder, ct);
+	if (failure is not null)
 	{
-		var geo = await geocoder.GeocodeAsync(new GeocodeRequest(request.Location!, options.DefaultLanguage), ct);
-		if (geo is null)
-		{
-			return Results.BadRequest(new { error = $"Could not geocode location '{request.Location}'." });
-		}
-
-		resolved = request with { Center = geo.Location };
+		return failure;
 	}
 
 	resolved = resolved with
@@ -158,11 +146,29 @@ app.MapPost("/v1/staticmap", async (MapRequest request, IGeocoder geocoder, IMap
 		Scale = Math.Max(1, resolved.Scale)
 	};
 
-	var image = await renderer.RenderAsync(resolved, ct);
-	return Results.File(image.Bytes, image.ContentType);
+	return await RenderFileAsync(resolved, renderer, ct);
 });
 
 app.Run();
+
+async Task<(MapRequest Request, IResult? Failure)> ResolveLocationAsync(MapRequest request, IGeocoder geocoder, CancellationToken ct)
+{
+	if (request.Center is not null || string.IsNullOrWhiteSpace(request.Location))
+	{
+		return (request, null);
+	}
+
+	var geo = await geocoder.GeocodeAsync(new GeocodeRequest(request.Location!, options.DefaultLanguage), ct);
+	return geo is null
+		? (request, Results.BadRequest(new { error = $"Could not geocode location '{request.Location}'." }))
+		: (request with { Center = geo.Location }, null);
+}
+
+async Task<IResult> RenderFileAsync(MapRequest request, IMapRenderer renderer, CancellationToken ct)
+{
+	var image = await renderer.RenderAsync(request, ct);
+	return Results.File(image.Bytes, image.ContentType);
+}
 
 /// <summary>Program entry point marker (enables WebApplicationFactory in tests).</summary>
 public partial class Program

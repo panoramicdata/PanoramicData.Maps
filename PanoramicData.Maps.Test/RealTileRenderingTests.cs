@@ -1,8 +1,4 @@
-using System.Net;
 using AwesomeAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using PanoramicData.Maps;
 using SkiaSharp;
 using Xunit;
 
@@ -25,48 +21,11 @@ public class RealTileRenderingTests
 
 	private static readonly SKColor Water = new(0xA0, 0xC8, 0xF0);
 
-	/// <summary>Serves one captured tile for its own coordinates, and 404 (as the tile service does) for the rest.</summary>
-	private sealed class CapturedTileHandler(int zoom, int x, int y) : HttpMessageHandler
-	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
-		{
-			if (!request.RequestUri!.AbsolutePath.EndsWith($"/planet/{zoom}/{x}/{y}.mvt", StringComparison.Ordinal))
-			{
-				return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-			}
-
-			var file = Path.Combine(AppContext.BaseDirectory, "TestData", $"planet-{zoom}-{x}-{y}.mvt");
-			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-			{
-				Content = new ByteArrayContent(File.ReadAllBytes(file))
-			});
-		}
-	}
-
 	private static SkiaSharpMapRenderer CreateRenderer(int zoom, int x, int y)
-		=> new(
-			new HttpClient(new CapturedTileHandler(zoom, x, y)),
-			Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular }),
-			NullLogger<SkiaSharpMapRenderer>.Instance);
+		=> TestRenderers.Create(new CapturedTileHandler(zoom, x, y));
 
 	private static bool ContainsColor(SKBitmap bitmap, SKColor color, int tolerance = 6)
-	{
-		for (var y = 0; y < bitmap.Height; y++)
-		{
-			for (var x = 0; x < bitmap.Width; x++)
-			{
-				var px = bitmap.GetPixel(x, y);
-				if (Math.Abs(px.Red - color.Red) <= tolerance
-					&& Math.Abs(px.Green - color.Green) <= tolerance
-					&& Math.Abs(px.Blue - color.Blue) <= tolerance)
-				{
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
+		=> PixelProbe.ContainsColor(bitmap, color, tolerance);
 
 	[Fact]
 	public async Task RenderAsync_MarineNatureReserveAtZoom5_DrawsOpenSeaWithNoLandFill()

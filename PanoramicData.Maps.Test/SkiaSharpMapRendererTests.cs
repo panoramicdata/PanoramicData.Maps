@@ -1,8 +1,4 @@
-using System.Net;
 using AwesomeAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using PanoramicData.Maps;
 using SkiaSharp;
 using Xunit;
 
@@ -12,18 +8,8 @@ public class SkiaSharpMapRendererTests
 {
 	// Returns 404 for every tile, so the renderer draws the no-data background + overlays only -
 	// enough to exercise projection, overlay drawing and PNG encoding without a real tile server.
-	private sealed class NoTilesHandler : HttpMessageHandler
-	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken _)
-			=> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-	}
-
 	private static SkiaSharpMapRenderer CreateRenderer()
-	{
-		var http = new HttpClient(new NoTilesHandler());
-		var options = Options.Create(new MapsOptions { TilesStyleUrl = "https://tiles.example/style.json", FontPath = TestFonts.SansRegular });
-		return new SkiaSharpMapRenderer(http, options, NullLogger<SkiaSharpMapRenderer>.Instance);
-	}
+		=> TestRenderers.Create(new StatusOnlyHandler());
 
 	[Fact]
 	public async Task RenderAsync_ProducesPngOfRequestedSize()
@@ -73,21 +59,7 @@ public class SkiaSharpMapRendererTests
 		var image = await renderer.RenderAsync(request, TestContext.Current.CancellationToken);
 
 		using var bmp = SKBitmap.Decode(image.Bytes);
-		var foundRed = false;
-		for (var y = 0; y < bmp.Height && !foundRed; y++)
-		{
-			for (var x = 0; x < bmp.Width; x++)
-			{
-				var px = bmp.GetPixel(x, y);
-				if (px.Red > 200 && px.Green < 70 && px.Blue < 70)
-				{
-					foundRed = true;
-					break;
-				}
-			}
-		}
-
-		foundRed.Should().BeTrue("the red marker should have been drawn");
+		PixelProbe.ContainsStrongRed(bmp).Should().BeTrue("the red marker should have been drawn");
 	}
 
 	[Fact]
@@ -130,21 +102,7 @@ public class SkiaSharpMapRendererTests
 		var image = await renderer.RenderAsync(request, TestContext.Current.CancellationToken);
 
 		using var bmp = SKBitmap.Decode(image.Bytes);
-		var foundRed = false;
-		for (var y = 0; y < bmp.Height && !foundRed; y++)
-		{
-			for (var x = 0; x < bmp.Width; x++)
-			{
-				var px = bmp.GetPixel(x, y);
-				if (px.Red > 200 && px.Green < 70 && px.Blue < 70)
-				{
-					foundRed = true;
-					break;
-				}
-			}
-		}
-
-		foundRed.Should().BeTrue("France should have been shaded red from the embedded boundary data");
+		PixelProbe.ContainsStrongRed(bmp).Should().BeTrue("France should have been shaded red from the embedded boundary data");
 	}
 
 	[Fact]
