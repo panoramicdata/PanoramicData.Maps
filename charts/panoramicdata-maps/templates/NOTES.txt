@@ -1,0 +1,20 @@
+PanoramicData.Maps has been installed as {{ include "pdmaps.fullname" . }}.
+
+Maps server:     {{ include "pdmaps.fullname" . }}-maps (port {{ .Values.maps.service.port }})
+Photon backend:  {{ default "(application default)" (include "pdmaps.photonBaseUrl" .) }}
+Tile style:      {{ default "(application default)" (include "pdmaps.tilesStyleUrl" .) }}
+{{- if or .Values.tiles.enabled .Values.photon.enabled }}
+
+The data volumes start EMPTY. Populate them before expecting maps or geocoding to work:
+{{- if .Values.tiles.enabled }}
+  - tiles:  copy a .pmtiles archive into the volume mounted at {{ .Values.tiles.dataMountPath }}
+{{- end }}
+{{- if .Values.photon.enabled }}
+  - photon: unpack a Photon index into the volume mounted at {{ .Values.photon.dataMountPath }}
+{{- end }}
+See docs/HELM.md.
+{{- end }}
+
+Try it:
+  kubectl port-forward svc/{{ include "pdmaps.fullname" . }}-maps 8080:{{ .Values.maps.service.port }}
+  curl http://localhost:8080/health

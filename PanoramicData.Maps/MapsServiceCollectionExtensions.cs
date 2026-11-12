@@ -36,6 +36,9 @@ public static class MapsServiceCollectionExtensions
 		// Named marker icons come from the style's own sprite sheet, cached for the process lifetime.
 		services.AddHttpClient<SpriteSheetProvider>();
 
+		// Source-data age for /health, cached so probes do not hammer the backends (issue #8).
+		services.AddHttpClient<SourceDataAgeProvider>();
+
 		// Native SkiaSharp renderer (no headless browser). Its HttpClient auto-decompresses gzip
 		// tile responses.
 		services.AddHttpClient<IMapRenderer, SkiaSharpMapRenderer>()

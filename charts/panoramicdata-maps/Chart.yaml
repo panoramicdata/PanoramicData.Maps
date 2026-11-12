@@ -1,0 +1,11 @@
+apiVersion: v2
+name: panoramicdata-maps
+description: PanoramicData.Maps static-map service with optional in-cluster Photon geocoder and PMTiles tile server.
+type: application
+version: 0.1.0
+appVersion: "latest"
+home: https://github.com/panoramicdata/PanoramicData.Maps
+sources:
+  - https://github.com/panoramicdata/PanoramicData.Maps
+maintainers:
+  - name: Panoramic Data Limited

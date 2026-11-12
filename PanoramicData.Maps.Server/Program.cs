@@ -36,11 +36,14 @@ app.Use(async (context, next) =>
 // away rather than a cluster inspection (issue #11).
 var serviceInfo = MapsServiceInfo.Current;
 
-app.MapGet("/health", () => Results.Ok(new
+// sourceData carries the age of the tile archive and the Photon index for the Ops Dashboard's
+// staleness thresholds (issue #8); an unreadable source reports "unknown" and never fails the probe.
+app.MapGet("/health", async (SourceDataAgeProvider dataAge, CancellationToken ct) => Results.Ok(new
 {
 	status = "ok",
 	version = serviceInfo.Version,
-	commit = serviceInfo.Commit
+	commit = serviceInfo.Commit,
+	sourceData = await dataAge.GetAsync(ct)
 }));
 
 app.MapGet("/", () => Results.Ok(new

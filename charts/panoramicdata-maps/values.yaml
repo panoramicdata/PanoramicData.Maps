@@ -1,0 +1,85 @@
+# Values for the PanoramicData.Maps stack: the maps server, and optionally the two backends it
+# depends on (a Photon geocoder and a go-pmtiles tile server) with their data volumes.
+# See docs/HELM.md. Anything written CHANGE_ME is a placeholder you must supply.
+
+nameOverride: ""
+fullnameOverride: ""
+
+maps:
+  replicaCount: 2
+  image:
+    # The image the repository's Dockerfile builds (PanoramicData.Maps.Server/Dockerfile).
+    # No release tag publishes one yet (issue #14): build and push your own, or set the tag you have.
+    repository: panoramicdata/maps
+    tag: "" # defaults to the chart appVersion
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  port: 8080
+  # Backend URLs. Empty means "use the in-cluster service when photon.enabled / tiles.enabled".
+  photonBaseUrl: ""
+  tilesStyleUrl: ""
+  requireApiKey: false
+  # Written to a Secret and exposed as Maps__ApiKeys__N. Leave empty unless requireApiKey is true.
+  apiKeys: []
+  defaultLanguage: ""
+  maxWidth: 2048
+  maxHeight: 2048
+  maxScale: 2
+  extraEnv: [] # additional Maps__* variables, as name/value pairs
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { cpu: "2", memory: 1Gi }
+  service:
+    type: ClusterIP
+    port: 80
+  ingress:
+    enabled: false
+    className: ""
+    host: maps.example.com
+    tlsSecretName: ""
+    annotations: {}
+
+# go-pmtiles tile server. It must serve the MapLibre style at /style.json and vector tiles at
+# /planet/{z}/{x}/{y}.mvt. The repository defines no image for it, so one must be supplied.
+tiles:
+  enabled: false
+  image:
+    repository: "" # CHANGE_ME: an image that runs go-pmtiles (https://github.com/protomaps/go-pmtiles)
+    tag: "" # CHANGE_ME
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  port: 8080
+  command: [] # CHANGE_ME if the image needs an explicit command
+  args: []
+  dataMountPath: /data
+  # Volume holding the .pmtiles archive. Fill it yourself (see docs/HELM.md); size it for the build
+  # plus 100% headroom (the planet build is about 128 GB).
+  persistence:
+    existingClaim: "" # a claim you already populated, or empty to create one
+    storageClass: ""
+    size: 256Gi
+    accessMode: ReadWriteOnce
+  resources: {}
+  service:
+    port: 80
+
+# Photon geocoder. The repository defines no image for it either.
+photon:
+  enabled: false
+  image:
+    repository: "" # CHANGE_ME: a Photon image (https://github.com/komoot/photon)
+    tag: "" # CHANGE_ME
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  port: 2322
+  command: []
+  args: []
+  dataMountPath: /photon/photon_data
+  persistence:
+    existingClaim: ""
+    storageClass: ""
+    size: 150Gi
+    accessMode: ReadWriteOnce
+  resources: {}
+  service:
+    port: 80

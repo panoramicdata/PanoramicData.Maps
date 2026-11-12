@@ -101,6 +101,31 @@ Bound from the `Maps` section (or `Maps__*` environment variables):
 | `Maps__RequireApiKey` | `false` | When `true`, `/staticmap`, `/v1/*` require an API key (`X-Api-Key` header or `?key=`). |
 | `Maps__ApiKeys__0` … | — | Accepted API keys (metering/monetisation). |
 | `Maps__MaxWidth` / `MaxHeight` / `MaxScale` | 2048 / 2048 / 2 | Output caps. |
+| `Maps__PhotonStatusUrl` | `<PhotonBaseUrl>/status` | Photon status endpoint read for `import_date` (data age). |
+| `Maps__TilesDataUrl` | `planet.json` beside the style URL | URL whose `Last-Modified` header dates the tile archive (HEAD request). |
+| `Maps__PhotonIndexPath` / `Maps__TilesDataPath` | unset | Local path whose timestamp dates the dataset; wins over the URLs. Use when the data volume is mounted into the service. |
+| `Maps__DataAgeCacheSeconds` | 600 | How long a data-age reading is reused. |
+
+### Data age on /health
+
+`GET /health` returns the build identity plus the age of the two datasets, for staleness monitoring
+(the Ops Dashboard applies its 90 day warning and 180 day critical thresholds to `ageDays`):
+
+```json
+{
+  "status": "ok", "version": "1.2.3", "commit": "abc123",
+  "sourceData": {
+    "tiles":  { "source": "https://tiles.example/planet.json", "lastUpdatedUtc": "2026-10-03T00:00:00+00:00", "ageDays": 40, "status": "ok", "note": null },
+    "photon": { "source": "https://photon.example/status", "lastUpdatedUtc": null, "ageDays": null, "status": "unknown", "note": "HTTP 503" }
+  }
+}
+```
+
+An unreadable or unreachable source reports `"status": "unknown"` with a `note`; it never fails the
+probe and `status` stays `ok`. Readings are cached (`Maps__DataAgeCacheSeconds`) and each backend call
+has a 5 second timeout. Whether the tile server sends a `Last-Modified` header for `planet.json`
+depends on your deployment; if it does not, set `Maps__TilesDataUrl` to a URL that does, or mount the
+archive and set `Maps__TilesDataPath`.
 
 In-cluster, prefer the **internal** Service DNS for the backends to avoid egress, e.g.
 `Maps__TilesStyleUrl=http://tiles.tiles.svc.cluster.local/style.json` — as long as the derived tile
@@ -119,7 +144,9 @@ curl -o map.png "http://localhost:8080/staticmap?center=51.5074,-0.1278&zoom=13&
 
 ## Kubernetes
 
-The service is a plain stateless Deployment. Example (adapt namespaces/hosts/cert to your cluster):
+A Helm chart covering the maps server and optional tile and Photon backends is in
+`charts/panoramicdata-maps`; see [HELM.md](HELM.md). The service itself is a plain stateless
+Deployment. Example (adapt namespaces/hosts/cert to your cluster):
 
 ```yaml
 apiVersion: apps/v1

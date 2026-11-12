@@ -1,0 +1,93 @@
+{{- /* The tile server and Photon are the same shape: one pod, one data volume, one Service. */ -}}
+{{- range $component := list "tiles" "photon" }}
+{{- $v := index $.Values $component }}
+{{- if $v.enabled }}
+{{- $ctx := dict "root" $ "component" $component "values" $v }}
+{{- if not $v.image.repository }}
+{{- fail (printf "%s.enabled is set but %s.image.repository is empty: the repository defines no such image, supply one" $component $component) }}
+{{- end }}
+{{- if not $v.persistence.existingClaim }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "pdmaps.claimName" $ctx }}
+  labels:
+    {{- include "pdmaps.labels" $ctx | nindent 4 }}
+spec:
+  accessModes:
+    - {{ $v.persistence.accessMode }}
+  {{- if $v.persistence.storageClass }}
+  storageClassName: {{ $v.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $v.persistence.size }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pdmaps.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "pdmaps.labels" $ctx | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "pdmaps.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pdmaps.selectorLabels" $ctx | nindent 8 }}
+    spec:
+      {{- with $v.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $component }}
+          image: "{{ $v.image.repository }}:{{ required (printf "%s.image.tag is required" $component) $v.image.tag }}"
+          imagePullPolicy: {{ $v.image.pullPolicy }}
+          {{- with $v.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $v.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $v.port }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ $v.dataMountPath }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          resources:
+            {{- toYaml $v.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "pdmaps.claimName" $ctx }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pdmaps.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "pdmaps.labels" $ctx | nindent 4 }}
+spec:
+  selector:
+    {{- include "pdmaps.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $v.service.port }}
+      targetPort: http
+{{- end }}
+{{- end }}

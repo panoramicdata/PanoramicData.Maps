@@ -1,0 +1,136 @@
+{{- $ctx := dict "root" . "component" "maps" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pdmaps.fullname" . }}-maps
+  labels:
+    {{- include "pdmaps.labels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ .Values.maps.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pdmaps.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pdmaps.selectorLabels" $ctx | nindent 8 }}
+    spec:
+      {{- with .Values.maps.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: maps
+          image: "{{ .Values.maps.image.repository }}:{{ default .Chart.AppVersion .Values.maps.image.tag }}"
+          imagePullPolicy: {{ .Values.maps.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.maps.port }}
+          env:
+            - name: ASPNETCORE_URLS
+              value: "http://+:{{ .Values.maps.port }}"
+            {{- with include "pdmaps.photonBaseUrl" . }}
+            - name: Maps__PhotonBaseUrl
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with include "pdmaps.tilesStyleUrl" . }}
+            - name: Maps__TilesStyleUrl
+              value: {{ . | quote }}
+            {{- end }}
+            - name: Maps__RequireApiKey
+              value: {{ .Values.maps.requireApiKey | quote }}
+            - name: Maps__MaxWidth
+              value: {{ .Values.maps.maxWidth | quote }}
+            - name: Maps__MaxHeight
+              value: {{ .Values.maps.maxHeight | quote }}
+            - name: Maps__MaxScale
+              value: {{ .Values.maps.maxScale | quote }}
+            {{- if .Values.maps.defaultLanguage }}
+            - name: Maps__DefaultLanguage
+              value: {{ .Values.maps.defaultLanguage | quote }}
+            {{- end }}
+            {{- range $index, $key := .Values.maps.apiKeys }}
+            - name: Maps__ApiKeys__{{ $index }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pdmaps.fullname" $ }}-maps
+                  key: apikey-{{ $index }}
+            {{- end }}
+            {{- with .Values.maps.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.maps.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pdmaps.fullname" . }}-maps
+  labels:
+    {{- include "pdmaps.labels" $ctx | nindent 4 }}
+spec:
+  type: {{ .Values.maps.service.type }}
+  selector:
+    {{- include "pdmaps.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.maps.service.port }}
+      targetPort: http
+{{- if .Values.maps.apiKeys }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "pdmaps.fullname" . }}-maps
+  labels:
+    {{- include "pdmaps.labels" $ctx | nindent 4 }}
+type: Opaque
+stringData:
+  {{- range $index, $key := .Values.maps.apiKeys }}
+  apikey-{{ $index }}: {{ $key | quote }}
+  {{- end }}
+{{- end }}
+{{- if .Values.maps.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pdmaps.fullname" . }}-maps
+  labels:
+    {{- include "pdmaps.labels" $ctx | nindent 4 }}
+  {{- with .Values.maps.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.maps.ingress.className }}
+  ingressClassName: {{ .Values.maps.ingress.className }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.maps.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pdmaps.fullname" . }}-maps
+                port:
+                  number: {{ .Values.maps.service.port }}
+  {{- if .Values.maps.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ .Values.maps.ingress.host | quote }}
+      secretName: {{ .Values.maps.ingress.tlsSecretName }}
+  {{- end }}
+{{- end }}

@@ -65,6 +65,27 @@ public sealed class MapsOptions
 	/// </summary>
 	public string? FontPath { get; set; }
 
+	/// <summary>
+	/// Photon status URL, read for its <c>import_date</c> (issue #8). When unset it is
+	/// <see cref="PhotonBaseUrl"/> plus <c>/status</c>.
+	/// </summary>
+	public string? PhotonStatusUrl { get; set; }
+
+	/// <summary>
+	/// URL whose <c>Last-Modified</c> header dates the tile archive, read with a HEAD request (issue #8).
+	/// When unset it is <c>planet.json</c> beside the style URL.
+	/// </summary>
+	public string? TilesDataUrl { get; set; }
+
+	/// <summary>Local path of the Photon index (file or directory) whose timestamp dates it; wins over the status URL.</summary>
+	public string? PhotonIndexPath { get; set; }
+
+	/// <summary>Local path of the PMTiles archive whose timestamp dates it; wins over <see cref="TilesDataUrl"/>.</summary>
+	public string? TilesDataPath { get; set; }
+
+	/// <summary>How long a source-data age reading is reused before the backends are asked again.</summary>
+	public int DataAgeCacheSeconds { get; set; } = 600;
+
 	/// <summary>Maximum permitted image width in CSS pixels.</summary>
 	public int MaxWidth { get; set; } = 2048;
 
