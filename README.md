@@ -12,6 +12,8 @@ thin **geocoding** passthrough — for a self-hosted [Photon](https://github.com
 [Protomaps](https://protomaps.com) / [MapLibre](https://maplibre.org) map stack. A drop-in,
 self-hostable alternative to the Google Static Maps + Geocoding APIs.
 
+Supports .NET 11.0.
+
 Renders **natively with SkiaSharp — no headless browser, no Node.js.**
 
 See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for Kubernetes setup, dependencies and dataset

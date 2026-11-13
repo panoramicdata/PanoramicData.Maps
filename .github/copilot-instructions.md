@@ -19,7 +19,7 @@ headless Chromium (Playwright) and screenshotting.
 
 ## Conventions (match PanoramicData.NugetManagement)
 
-- **Target**: .NET 10 (`net10.0`); SDK pinned via `global.json`.
+- **Target**: .NET 11.0 (`net11.0`); SDK pinned via `global.json`.
 - **CPM**: all versions in `Directory.Packages.props`; `<PackageReference>` without `Version`.
 - **Directory.Build.props**: `TreatWarningsAsErrors`, `Nullable enable`, `GenerateDocumentationFile`,
   `NuGetAuditMode All`. XML doc comments are therefore **required** on public members.
@@ -47,7 +47,7 @@ use a stub `HttpMessageHandler`). Rendering is exercised end-to-end only in the 
 - **maplibre-gl** is currently loaded from a CDN in the render page — vendor it into the image to
   remove the runtime dependency.
 - **Dockerfile** bases the runtime on the official Playwright .NET image; keep its tag aligned with
-  the `Microsoft.Playwright` package version and a .NET 10-capable variant.
+  the `Microsoft.Playwright` package version and a .NET 11.0-capable variant.
 - **Auth**: `Maps:RequireApiKey` is off by default (OSS-friendly); the hosted canonical service turns
   it on to meter/monetise.
 - **Icons from the sprite sheet** and richer marker labels are not yet implemented (markers, lines,
