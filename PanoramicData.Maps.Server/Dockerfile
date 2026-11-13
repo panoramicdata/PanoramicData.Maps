@@ -1,8 +1,8 @@
 # Static-map + geocoding service. Renders natively with SkiaSharp (no headless browser), so the
 # runtime image is a plain ASP.NET Core image - small and fast to start.
 #
-# Build + push (CI does this to Docker Hub as panoramicdata/maps):
-#   docker build -t panoramicdata/maps:dev -f PanoramicData.Maps.Server/Dockerfile .
+# Build + push (CI does this to ghcr.io/panoramicdata/maps on a release tag):
+#   docker build -t ghcr.io/panoramicdata/maps:dev -f PanoramicData.Maps.Server/Dockerfile .
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src

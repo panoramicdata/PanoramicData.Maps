@@ -9,6 +9,7 @@ self-hosted, and no database or persistent storage of its own.
 - [Dataset options (planet vs alternatives)](#dataset-options-planet-vs-alternatives)
 - [Configuration](#configuration)
 - [Running with Docker](#running-with-docker)
+- [One-time setup for the container image](#one-time-setup-for-the-container-image)
 - [Kubernetes](#kubernetes)
 - [Scaling & sizing](#scaling--sizing)
 - [Attribution & licensing](#attribution--licensing)
@@ -137,10 +138,19 @@ URL and the CORS/attribution expectations still hold (server-side rendering does
 docker run -p 8080:8080 \
   -e Maps__PhotonBaseUrl=https://photon-test.panoramicdata.com \
   -e Maps__TilesStyleUrl=https://tiles-test.panoramicdata.com/style.json \
-  panoramicdata/maps:latest
+  ghcr.io/panoramicdata/maps:<released-version>
 
 curl -o map.png "http://localhost:8080/staticmap?center=51.5074,-0.1278&zoom=13&size=800x600&markers=color:red|label:A|51.5074,-0.1278"
 ```
+
+## One-time setup for the container image
+
+CI pushes `ghcr.io/panoramicdata/maps` with the repository's own `GITHUB_TOKEN`; no registry secret is needed. Two settings must be made by a repository owner:
+
+1. **Workflow permissions.** In the repository, Settings, Actions, General, Workflow permissions, confirm the token is allowed to write packages (the `publish-docker` job requests `packages: write`, which an organisation default of read-only can override).
+2. **Package visibility.** After the first tag has pushed an image, open the package (Packages, `maps`, Package settings) and set its visibility to **Public**, so outside users can pull without credentials. A new package is private by default, and this cannot be done from the workflow.
+
+Images are tagged with the release version (the plain `major.minor.patch` tag, for example `0.2.24`) and `latest`. Pin a released version in production.
 
 ## Kubernetes
 
@@ -160,7 +170,7 @@ spec:
     spec:
       containers:
         - name: maps
-          image: panoramicdata/maps:1.0.0   # or a Harbor mirror
+          image: ghcr.io/panoramicdata/maps:<released-version>   # or a private mirror
           ports: [ { containerPort: 8080 } ]
           env:
             - { name: ASPNETCORE_URLS, value: "http://+:8080" }

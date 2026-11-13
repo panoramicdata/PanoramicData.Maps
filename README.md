@@ -3,7 +3,7 @@
 [![CI](https://github.com/panoramicdata/PanoramicData.Maps/actions/workflows/ci.yml/badge.svg)](https://github.com/panoramicdata/PanoramicData.Maps/actions/workflows/ci.yml)
 [![Nuget](https://img.shields.io/nuget/v/PanoramicData.Maps)](https://www.nuget.org/packages/PanoramicData.Maps/)
 [![Nuget](https://img.shields.io/nuget/dt/PanoramicData.Maps)](https://www.nuget.org/packages/PanoramicData.Maps/)
-[![Docker](https://img.shields.io/docker/v/panoramicdata/maps?label=docker&sort=semver)](https://hub.docker.com/r/panoramicdata/maps)
+[![Container image](https://img.shields.io/github/v/tag/panoramicdata/PanoramicData.Maps?label=ghcr.io&sort=semver)](https://github.com/panoramicdata/PanoramicData.Maps/pkgs/container/maps)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/108a448491af41e89dde8c039bf14dce)](https://app.codacy.com/gh/panoramicdata/PanoramicData.Maps/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
@@ -30,7 +30,7 @@ screenshotting the result, so any MapLibre style and overlay works exactly as it
 | `PanoramicData.Maps.Abstractions` | Request models and URL building (`MapRequest`, `MarkerSpec`, `StaticMapUrlBuilder`). No heavy dependencies. | NuGet: `PanoramicData.Maps.Abstractions` |
 | `PanoramicData.Maps` | Renderer, geocoder and options (`IMapRenderer`, `IGeocoder`, `PhotonGeocoder`, `SkiaSharpMapRenderer`). | NuGet: `PanoramicData.Maps` |
 | `PanoramicData.Maps.Blazor` | Blazor components - `<StaticMap>`. No JavaScript. | NuGet: `PanoramicData.Maps.Blazor` |
-| `PanoramicData.Maps.Server` | ASP.NET Core HTTP service. | Docker Hub: `panoramicdata/maps` |
+| `PanoramicData.Maps.Server` | ASP.NET Core HTTP service. | Container image: `ghcr.io/panoramicdata/maps` |
 | `PanoramicData.Maps.Test` | xUnit v3 tests. | — |
 
 ## HTTP API

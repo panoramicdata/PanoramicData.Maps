@@ -14,7 +14,7 @@ headless Chromium (Playwright) and screenshotting.
 | Project | Purpose |
 |---------|---------|
 | `PanoramicData.Maps` | Core library — models, `IMapRenderer`, `IGeocoder`/`PhotonGeocoder`, `MapsOptions`, DI. Published as a NuGet package. |
-| `PanoramicData.Maps.Server` | ASP.NET Core HTTP service + `PlaywrightMapRenderer`. Published as a Docker Hub image (`panoramicdata/maps`). Not packable. |
+| `PanoramicData.Maps.Server` | ASP.NET Core HTTP service + `PlaywrightMapRenderer`. Published as a container image (`ghcr.io/panoramicdata/maps`). Not packable. |
 | `PanoramicData.Maps.Test` | xUnit v3 tests. |
 
 ## Conventions (match PanoramicData.NugetManagement)

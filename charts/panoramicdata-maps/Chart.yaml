@@ -3,6 +3,7 @@ name: panoramicdata-maps
 description: PanoramicData.Maps static-map service with optional in-cluster Photon geocoder and PMTiles tile server.
 type: application
 version: 0.1.0
+# Fallback image tag only. Set maps.image.tag to a released version rather than rely on latest.
 appVersion: "latest"
 home: https://github.com/panoramicdata/PanoramicData.Maps
 sources:

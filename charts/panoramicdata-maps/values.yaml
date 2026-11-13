@@ -8,10 +8,10 @@ fullnameOverride: ""
 maps:
   replicaCount: 2
   image:
-    # The image the repository's Dockerfile builds (PanoramicData.Maps.Server/Dockerfile).
-    # No release tag publishes one yet (issue #14): build and push your own, or set the tag you have.
-    repository: panoramicdata/maps
-    tag: "" # defaults to the chart appVersion
+    # Published to ghcr.io by CI on each release tag (built from PanoramicData.Maps.Server/Dockerfile).
+    # Set tag to a released version (for example the newest 0.2.x tag), not latest.
+    repository: ghcr.io/panoramicdata/maps
+    tag: "" # set to a released version; empty falls back to the chart appVersion (latest)
     pullPolicy: IfNotPresent
   imagePullSecrets: []
   port: 8080

@@ -5,19 +5,20 @@ optionally, the two backends it depends on (see [DEPLOYMENT.md](DEPLOYMENT.md#ar
 
 | Component | Chart switch | Data volume | Image |
 |---|---|---|---|
-| Maps server | always | none (stateless) | `panoramicdata/maps`, built from `PanoramicData.Maps.Server/Dockerfile` |
+| Maps server | always | none (stateless) | `ghcr.io/panoramicdata/maps`, built from `PanoramicData.Maps.Server/Dockerfile` |
 | Tile server ([go-pmtiles](https://github.com/protomaps/go-pmtiles)) | `tiles.enabled` | PMTiles archive | **you supply it** |
 | Photon geocoder ([komoot/photon](https://github.com/komoot/photon)) | `photon.enabled` | Photon index | **you supply it** |
 
-> **Status.** The chart has been written but not yet installed on a cluster, and `helm lint` /
-> `helm template` have not been run against it. Treat it as a starting point and report problems.
-> No release tag publishes a maps image yet (issue #14), so build and push your own first.
+> **Status.** The chart passes `helm lint` and `helm template` with Helm 3.16.2 (defaults, tiles and
+> Photon enabled, ingress on, API keys on). It has not been installed on a cluster.
 
 ## What you need to provide
 
-1. **A maps image.** `docker build -t <your-registry>/maps:<tag> -f PanoramicData.Maps.Server/Dockerfile .`
-   then push it, and set `maps.image.repository` and `maps.image.tag`. Add `maps.imagePullSecrets` for a
-   private registry.
+1. **A maps image.** CI publishes `ghcr.io/panoramicdata/maps` on every release tag, tagged with the
+   version (for example `0.2.24`) and `latest`. Set `maps.image.tag` to a released version rather than
+   relying on `latest`. To use your own build instead, `docker build -t <your-registry>/maps:<tag> -f
+   PanoramicData.Maps.Server/Dockerfile .`, push it and set `maps.image.repository`; add
+   `maps.imagePullSecrets` for a private registry.
 2. **Tile and Photon images** if you want them in-cluster. The repository defines neither, so
    `tiles.image.*` and `photon.image.*` are empty placeholders (`CHANGE_ME`) and the chart refuses to
    render a backend whose image is unset. `tiles.command`/`args` and `photon.command`/`args` are
@@ -49,7 +50,7 @@ helm install maps ./charts/panoramicdata-maps -f my-values.yaml
 ```yaml
 # my-values.yaml
 maps:
-  image: { repository: registry.example.com/maps, tag: "1.0.0" }
+  image: { tag: "<released-version>" }
   ingress: { enabled: true, className: nginx, host: maps.example.com, tlsSecretName: maps-tls }
 tiles:
   enabled: true
