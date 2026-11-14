@@ -42,8 +42,8 @@ public class SourceDataAgeProviderTests
 		return response;
 	}
 
-	private static HttpResponseMessage Json(string json)
-		=> new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+	private static HttpResponseMessage Json(string body)
+		=> new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
 	private static SourceDataAgeProvider Create(HttpMessageHandler handler, Action<MapsOptions>? configure = null)
 	{
