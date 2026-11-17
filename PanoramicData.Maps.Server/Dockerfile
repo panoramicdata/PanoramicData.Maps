@@ -4,13 +4,13 @@
 # Build + push (CI does this to ghcr.io/panoramicdata/maps on a release tag):
 #   docker build -t ghcr.io/panoramicdata/maps:dev -f PanoramicData.Maps.Server/Dockerfile .
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /src
 COPY . .
 RUN dotnet restore PanoramicData.Maps.Server/PanoramicData.Maps.Server.csproj
 RUN dotnet publish PanoramicData.Maps.Server/PanoramicData.Maps.Server.csproj -c Release -o /app /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime
 WORKDIR /app
 # SkiaSharp.NativeAssets.Linux links fontconfig; install it plus a font so text (the OpenStreetMap
 # attribution now, place labels later) renders. fonts-dejavu-core is small and widely available.
