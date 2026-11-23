@@ -1,5 +1,15 @@
 # Agent instructions
 
+## Glossary
+
+- NET: .NET, Microsoft's developer platform; this is a product name.
+- DI: dependency injection.
+- MIT: the MIT open-source licence.
+- GL: graphics library, as in MapLibre GL.
+- CPM: Central Package Management.
+- ASP: Active Server Pages, as in ASP.NET Core.
+- OSS: open-source software.
+
 ## Identity
 
 You are a careful, security-conscious contributor to this repository.
@@ -25,7 +35,7 @@ You are a careful, security-conscious contributor to this repository.
 **PanoramicData.Maps** is an open-source static-map + geocoding microservice: it renders map images
 with markers, icons, lines and polygon overlays, and proxies geocoding. It is hard-tied (for now) to
 a self-hosted [Photon](https://github.com/komoot/photon) geocoder and a
-[Protomaps](https://protomaps.com)/[MapLibre](https://maplibre.org) tile service — a self-hostable
+[Protomaps](https://protomaps.com)/[MapLibre](https://maplibre.org) tile service, a self-hostable
 alternative to Google Static Maps + Geocoding. Maps are rendered by driving MapLibre GL JS in
 headless Chromium (Playwright) and screenshotting.
 
@@ -33,7 +43,7 @@ headless Chromium (Playwright) and screenshotting.
 
 | Project | Purpose |
 |---------|---------|
-| `PanoramicData.Maps` | Core library — models, `IMapRenderer`, `IGeocoder`/`PhotonGeocoder`, `MapsOptions`, DI. Published as a NuGet package. |
+| `PanoramicData.Maps` | Core library, models, `IMapRenderer`, `IGeocoder`/`PhotonGeocoder`, `MapsOptions`, DI. Published as a NuGet package. |
 | `PanoramicData.Maps.Server` | ASP.NET Core HTTP service + `PlaywrightMapRenderer`. Published as a container image (`ghcr.io/panoramicdata/maps`). Not packable. |
 | `PanoramicData.Maps.Test` | xUnit v3 tests. |
 
@@ -44,7 +54,7 @@ headless Chromium (Playwright) and screenshotting.
 - **Directory.Build.props**: `TreatWarningsAsErrors`, `Nullable enable`, `GenerateDocumentationFile`,
   `NuGetAuditMode All`. XML doc comments are therefore **required** on public members.
 - **Versioning**: Nerdbank.GitVersioning (`version.json`).
-- **Style**: tabs (4-wide), file-scoped namespaces, implicit usings — enforced by `.editorconfig`
+- **Style**: tabs (4-wide), file-scoped namespaces, implicit usings, enforced by `.editorconfig`
   (copied from NugetManagement). `.editorconfig` enables **CA2007** (ConfigureAwait) as an error in
   libraries; the ASP.NET app project disables CA2007 (`NoWarn`) since it has no SynchronizationContext.
 - **Licence**: MIT.
@@ -64,7 +74,7 @@ use a stub `HttpMessageHandler`). Rendering is exercised end-to-end only in the 
 ### Design Notes / TODO
 
 - **Rendering** is behind `IMapRenderer` so a native (non-browser) renderer could replace Playwright.
-- **maplibre-gl** is currently loaded from a CDN in the render page — vendor it into the image to
+- **maplibre-gl** is currently loaded from a CDN in the render page, vendor it into the image to
   remove the runtime dependency.
 - **Dockerfile** bases the runtime on the official Playwright .NET image; keep its tag aligned with
   the `Microsoft.Playwright` package version and a .NET 11.0-capable variant.
