@@ -15,9 +15,9 @@
     <PackageVersion Include="Refit" Version="17.0.0" />
     <PackageVersion Include="Refit.Reflection" Version="17.0.0" />
     <!-- Rendering (native MVT -> SkiaSharp; no headless browser) -->
-    <PackageVersion Include="SkiaSharp" Version="4.157.0" />
-    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.157.0" />
-    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.157.0" />
+    <PackageVersion Include="SkiaSharp" Version="4.158.0" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.158.0" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.158.0" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
     <PackageVersion Include="NetTopologySuite.IO.VectorTiles" Version="1.1.0" />
     <PackageVersion Include="NetTopologySuite.IO.VectorTiles.Mapbox" Version="1.1.0" />
